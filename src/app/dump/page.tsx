@@ -42,7 +42,11 @@ export default function Dump() {
     setLoading(true);
     setOutput('');
     await new Promise(r => setTimeout(r, 2000));
-    setOutput(`I've been thinking a lot about this lately — and I think it's worth sharing.\n\n${input.trim().slice(0, 180)}...\n\nThe truth is, most people don't talk about this enough. But the ones who do? They're the ones moving forward.\n\nWhat's your take on this?\n\n#LinkedIn #Growth #Authenticity`);
+    const post = `I've been thinking a lot about this lately — and I think it's worth sharing.\n\n${input.trim().slice(0, 180)}...\n\nThe truth is, most people don't talk about this enough. But the ones who do? They're the ones moving forward.\n\nWhat's your take on this?\n\n#LinkedIn #Growth #Authenticity`;
+    setOutput(post);
+    const history = JSON.parse(localStorage.getItem('dp-history') || '[]');
+    history.push({ post, dump: input.trim(), date: new Date().toISOString() });
+    localStorage.setItem('dp-history', JSON.stringify(history));
     setLoading(false);
   };
 
@@ -195,36 +199,182 @@ export default function Dump() {
         )}
 
         {/* History */}
-        {section === 'history' && (
-          <div className="section-placeholder">
-            <i className="ti ti-history" style={{ fontSize: '2rem', color: 'var(--text-dim)', marginBottom: '16px' }} />
-            <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontWeight: 300, fontSize: '1.8rem', color: 'var(--text)', marginBottom: '8px' }}>History</h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>Your past generated posts will appear here.</p>
-          </div>
-        )}
+{section === 'history' && (
+  <div className="section-page">
+    <div className="section-header">
+      <h2 className="section-title">History</h2>
+      <p className="section-subtitle">Your past generated posts.</p>
+    </div>
+
+    {(() => {
+      const history = JSON.parse(localStorage.getItem('dp-history') || '[]');
+      if (history.length === 0) return (
+        <div className="history-empty">
+          <i className="ti ti-writing" style={{ fontSize: '2rem', color: 'var(--text-dim)', marginBottom: '12px' }} />
+          <p className="section-subtitle">No posts yet. Generate your first one from the workspace.</p>
+        </div>
+      );
+      return (
+        <div className="history-list">
+          {history.reverse().map((item: { post: string; date: string; dump: string }, i: number) => (
+            <div key={i} className="history-item">
+              <div className="history-item-header">
+                <span className="history-date">{new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                <button className="settings-action-btn" onClick={() => {
+                  navigator.clipboard.writeText(item.post);
+                }}>Copy</button>
+              </div>
+              <p className="history-post">{item.post}</p>
+              <p className="history-dump-label">Original dump</p>
+              <p className="history-dump">{item.dump}</p>
+            </div>
+          ))}
+        </div>
+      );
+    })()}
+  </div>
+)}
 
         {/* Profile */}
-        {section === 'profile' && (
-          <div className="section-placeholder">
-            <i className="ti ti-user" style={{ fontSize: '2rem', color: 'var(--text-dim)', marginBottom: '16px' }} />
-            <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontWeight: 300, fontSize: '1.8rem', color: 'var(--text)', marginBottom: '8px' }}>Profile</h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>Your name, user type and onboarding answers.</p>
-          </div>
-        )}
+{section === 'profile' && (
+  <div className="section-page">
+    <div className="section-header">
+      <h2 className="section-title">Profile</h2>
+      <p className="section-subtitle">How DumpPost knows you.</p>
+    </div>
 
-        {/* Settings */}
-        {section === 'settings' && (
-          <div className="section-placeholder">
-            <i className="ti ti-settings" style={{ fontSize: '2rem', color: 'var(--text-dim)', marginBottom: '16px' }} />
-            <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontWeight: 300, fontSize: '1.8rem', color: 'var(--text)', marginBottom: '8px' }}>Settings</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '24px' }}>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>Theme</span>
-              <button className="cta-btn" onClick={() => setDark(!dark)} style={{ padding: '8px 20px', fontSize: '0.75rem' }}>
-                {dark ? '🌙 Dark' : '☀️ Light'}
-              </button>
-            </div>
+    <div className="profile-grid">
+      <div className="profile-card">
+        <span className="profile-card-label">Name</span>
+        <span className="profile-card-value">{localStorage.getItem('dp-name') || '—'}</span>
+      </div>
+
+      <div className="profile-card">
+        <span className="profile-card-label">Type</span>
+        <span className="profile-card-value" style={{ textTransform: 'capitalize' }}>
+          {localStorage.getItem('dp-type') === 'employed' ? 'Working Professional' : localStorage.getItem('dp-type') === 'student' ? 'Student' : '—'}
+        </span>
+      </div>
+    </div>
+
+    <div className="section-divider" />
+
+    <div className="section-subheader">
+      <h3 className="section-subtitle" style={{ color: 'var(--text)', marginBottom: '4px' }}>Your onboarding answers</h3>
+      <p className="section-subtitle">These shape how your posts sound like you.</p>
+    </div>
+
+    <div className="answers-list">
+      {(() => {
+        const answers = JSON.parse(localStorage.getItem('dp-answers') || '[]');
+        const type = localStorage.getItem('dp-type');
+        const employedQuestions = [
+          "What are you working on right now?",
+          "What's the most interesting part of it?",
+          "What's been giving you the most trouble with it?",
+          "Who do you want reading your posts — and what do you want them to think when they do?",
+          "What part of your work do you actually enjoy?",
+          "Anything specific you want DumpPost to keep in mind?",
+        ];
+        const studentQuestions = [
+          "What are you currently studying or learning?",
+          "What's the most interesting thing you've come across recently?",
+          "What's something you've been trying to figure out or struggling with?",
+          "Who do you want reading your posts — and what do you want them to think when they do?",
+          "What part of your field do you actually enjoy?",
+          "Anything specific you want DumpPost to keep in mind?",
+        ];
+        const questions = type === 'student' ? studentQuestions : employedQuestions;
+        if (answers.length === 0) return <p className="section-subtitle">No answers yet — complete onboarding first.</p>;
+        return answers.map((answer: string, i: number) => (
+          <div key={i} className="answer-item">
+            <span className="answer-q">{questions[i]}</span>
+            <span className="answer-a">{answer}</span>
           </div>
-        )}
+              ));
+            })()}
+          </div>
+        </div>
+      )}
+
+ {/* Settings */}
+{section === 'settings' && (
+  <div className="section-page">
+    <div className="section-header">
+      <h2 className="section-title">Settings</h2>
+      <p className="section-subtitle">Manage your preferences.</p>
+    </div>
+
+    <div className="settings-group">
+      <p className="settings-group-label">Appearance</p>
+      <div className="settings-row">
+        <div className="settings-row-info">
+          <span className="settings-row-title">Theme</span>
+          <span className="settings-row-desc">Switch between dark and light mode</span>
+        </div>
+        <button className="settings-toggle-btn" onClick={() => setDark(!dark)}>
+          {dark ? '🌙 Dark' : '☀️ Light'}
+        </button>
+      </div>
+    </div>
+
+    <div className="section-divider" />
+
+    <div className="settings-group">
+      <p className="settings-group-label">Account</p>
+      <div className="settings-row">
+        <div className="settings-row-info">
+          <span className="settings-row-title">Email</span>
+          <span className="settings-row-desc">Your account email address</span>
+        </div>
+        <span className="settings-row-value">{localStorage.getItem('dp-name') || '—'}</span>
+      </div>
+
+      <div className="settings-row">
+        <div className="settings-row-info">
+          <span className="settings-row-title">Redo onboarding</span>
+          <span className="settings-row-desc">Reset your profile and answer questions again</span>
+        </div>
+        <button className="settings-action-btn" onClick={() => {
+          localStorage.removeItem('dp-answers');
+          localStorage.removeItem('dp-type');
+          localStorage.removeItem('dp-name');
+          router.push('/onboarding');
+        }}>
+          Reset
+        </button>
+      </div>
+
+      <div className="settings-row">
+        <div className="settings-row-info">
+          <span className="settings-row-title">Log out</span>
+          <span className="settings-row-desc">Sign out of your account</span>
+        </div>
+        <button className="settings-action-btn danger" onClick={handleLogout}>
+          Log out
+        </button>
+      </div>
+    </div>
+
+    <div className="section-divider" />
+
+    <div className="settings-group">
+      <p className="settings-group-label">Legal</p>
+      <div className="settings-row">
+        <div className="settings-row-info">
+          <span className="settings-row-title">Privacy policy</span>
+        </div>
+        <button className="settings-action-btn" onClick={() => window.open('https://dumppost.io/privacy', '_blank')}>View →</button>
+      </div>
+      <div className="settings-row">
+        <div className="settings-row-info">
+          <span className="settings-row-title">Usage policy</span>
+        </div>
+        <button className="settings-action-btn" onClick={() => window.open('https://dumppost.io/usage', '_blank')}>View →</button>
+      </div>
+    </div>
+  </div>
+)}
 
       </div>
     </main>
