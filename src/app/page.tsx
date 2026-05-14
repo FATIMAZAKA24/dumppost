@@ -39,7 +39,7 @@ export default function Home() {
         </p>
 
         <div className="cta-group">
-          <button className="cta-btn" onClick={() => router.push('/onboarding')}>
+          <button className="cta-btn" onClick={() => router.push('/signup')}>
             Get started → </button>
           <span className="cta-sub">Free during beta · No card required</span>
         </div>
