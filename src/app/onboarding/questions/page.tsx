@@ -72,7 +72,7 @@ export default function Questions() {
       setAnimating(false);
       if (current + 1 >= questions.length) {
         localStorage.setItem('dp-answers', JSON.stringify(newAnswers));
-        router.push('/dump');
+        router.push('/loading');
       } else {
         setCurrent(current + 1);
       }
