@@ -31,7 +31,7 @@ export default function UserType() {
   const handleContinue = () => {
     if (!selected) return;
     localStorage.setItem('dp-type', selected);
-    router.push('/onboarding/questions');
+    router.push('/onboarding/intro');
   };
 
   return (
@@ -50,8 +50,10 @@ export default function UserType() {
         <p className="wordmark">DumpPost</p>
 
         <h1 className="headline" style={{ marginBottom: '12px' }}>
-          {name ? `Good to meet you, ${name}.` : 'Good to meet you.'}<br />
-          <span className="accent">What describes you?</span>
+        <span style={{ fontSize: 'clamp(1.2rem, 2.5vw, 1.8rem)', color: 'var(--text-muted)', display: 'block', marginBottom: '8px', fontFamily: 'DM Sans, sans-serif', fontWeight: 300, letterSpacing: '0.04em' }}>
+            Wonderful to meet you, {name || 'there'}.
+        </span>
+        <span className="accent">What describes you?</span>
         </h1>
 
         <p className="tagline" style={{ marginBottom: '40px' }}>
