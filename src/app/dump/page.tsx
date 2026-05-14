@@ -10,7 +10,6 @@ export default function Dump() {
   const [dark, setDark] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [feedback, setFeedback] = useState<'accepted' | 'rejected' | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -29,15 +28,15 @@ export default function Dump() {
 
   if (!mounted) return null;
 
+  const wordCount = input.trim() === '' ? 0 : input.trim().split(/\s+/).length;
+
   const handleGenerate = async () => {
     if (input.trim().length === 0) return;
     setLoading(true);
     setOutput('');
-    setFeedback(null);
 
-    // Fake response for now — real Groq API comes later
     await new Promise(r => setTimeout(r, 2000));
-    setOutput(`Here's your LinkedIn post based on what you shared:\n\nI've been thinking a lot about this lately — and I think it's worth sharing.\n\n${input.trim().slice(0, 120)}...\n\nThe truth is, most people don't talk about this enough. But the ones who do? They're the ones moving forward.\n\nWhat's your take on this?\n\n#LinkedIn #Growth #Authenticity`);
+    setOutput(`I've been thinking a lot about this lately — and I think it's worth sharing.\n\n${input.trim().slice(0, 180)}...\n\nThe truth is, most people don't talk about this enough. But the ones who do? They're the ones moving forward.\n\nWhat's your take on this?\n\n#LinkedIn #Growth #Authenticity`);
     setLoading(false);
   };
 
@@ -47,19 +46,18 @@ export default function Dump() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleReject = () => {
-    setFeedback('rejected');
-    setOutput('');
-    setInput('');
-  };
-
   return (
     <main data-theme={dark ? 'dark' : 'light'} className="dump-page">
+
       <header className="dump-header">
         <p className="wordmark">DumpPost</p>
         <div className="dump-header-right">
-          <span className="dump-greeting">{name ? `Hi, ${name}` : ''}</span>
-          <button className="theme-toggle" style={{ position: 'static', opacity: 0.5 }} onClick={() => setDark(!dark)}>
+          {name && <span className="dump-greeting">Hi, {name}</span>}
+          <button
+            className="theme-toggle"
+            style={{ position: 'static', opacity: 0.4 }}
+            onClick={() => setDark(!dark)}
+          >
             {dark ? '🌙' : '☀️'}
           </button>
         </div>
@@ -67,54 +65,76 @@ export default function Dump() {
 
       <div className="dump-workspace">
 
-        <div className="dump-panel">
-          <label className="dump-label">Your thoughts</label>
+        {/* Left — Input */}
+        <div className="dump-panel dump-panel-left">
+          <div className="dump-panel-header">
+            <span className="dump-label">Dump</span>
+            <span className="dump-meta">{wordCount} {wordCount === 1 ? 'word' : 'words'}</span>
+          </div>
+
           <textarea
             className="dump-input"
-            placeholder="Just dump it all here. Raw thoughts, bullet points, a voice note transcript — anything. Don't overthink it."
+            placeholder={`What's on your mind, ${name || 'there'}? Raw thoughts, bullet points, a voice note transcript — anything goes. Don't overthink it.`}
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
-          <div className="dump-actions">
-            <span className="dump-char">{input.length} characters</span>
+
+          <div className="dump-panel-footer">
+            <p className="dump-hint-text">The messier the better. We'll clean it up.</p>
             <button
               className="cta-btn"
               onClick={handleGenerate}
               disabled={input.trim().length === 0 || loading}
             >
-              {loading ? 'Writing your post...' : 'Generate post →'}
+              {loading ? 'Writing...' : 'Generate →'}
             </button>
           </div>
         </div>
 
-        {(output || loading) && (
-          <div className="dump-panel output-panel">
-            <label className="dump-label">Your LinkedIn post</label>
+        {/* Right — Output */}
+        <div className="dump-panel dump-panel-right">
+          <div className="dump-panel-header">
+            <span className="dump-label">Your post</span>
+            {output && (
+              <div className="dump-feedback">
+                <button className="feedback-btn" onClick={handleCopy}>
+                  {copied ? '✓ Copied' : 'Copy'}
+                </button>
+                <button className="feedback-btn reject" onClick={() => { setOutput(''); setInput(''); }}>
+                  ↺ Retry
+                </button>
+              </div>
+            )}
+          </div>
 
-            {loading ? (
-              <div className="dump-loading">
+          {!output && !loading && (
+            <div className="dump-empty">
+                <p className="dump-empty-text">
+                {name ? `Ready when you are, ${name}.` : 'Ready when you are.'}<br />
+                <span style={{ fontSize: '0.85rem', opacity: 0.5 }}>
+                    Dump your thoughts on the left — we'll turn them into a post worth sharing.
+                </span>
+                </p>
+            </div>
+            )}
+
+          {loading && (
+            <div className="dump-loading-wrap">
+              <div className="loading-dots">
                 <span className="dump-loading-dot" />
                 <span className="dump-loading-dot" />
                 <span className="dump-loading-dot" />
               </div>
-            ) : (
-              <>
-                <div className="dump-output">{output}</div>
-                <div className="dump-feedback">
-                  <button className="feedback-btn accept" onClick={() => setFeedback('accepted')}>
-                    ✓ Looks good
-                  </button>
-                  <button className="feedback-btn copy" onClick={handleCopy}>
-                    {copied ? '✓ Copied!' : 'Copy'}
-                  </button>
-                  <button className="feedback-btn reject" onClick={handleReject}>
-                    ↺ Try again
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+              <p className="dump-loading-label">Writing your post...</p>
+            </div>
+          )}
+
+          {output && !loading && (
+            <div className="dump-output-wrap">
+              <div className="dump-output">{output}</div>
+            </div>
+          )}
+        </div>
 
       </div>
     </main>

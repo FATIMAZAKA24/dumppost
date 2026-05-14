@@ -31,7 +31,7 @@ export default function UserType() {
   const handleContinue = () => {
     if (!selected) return;
     localStorage.setItem('dp-type', selected);
-    router.push('/onboarding/intro');
+    router.push('/onboarding/preload');
   };
 
   return (

@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 const messages = [
-  'Reading between the lines...',
-  'Learning how you think...',
-  'Building your voice profile...',
-  'Getting your workspace ready...',
+  'Extracting your tone...',
+  'Mapping your vocabulary...',
+  'Reading your sentence rhythm...',
+  'Capturing your personality...',
+  'Your workspace is almost ready...',
 ];
 
 export default function Loading() {
