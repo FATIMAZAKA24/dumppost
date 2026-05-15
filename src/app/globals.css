@@ -1228,3 +1228,133 @@ body {
   padding-left: 12px;
 }
 
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 360px;
+}
+
+.auth-input {
+  width: 100%;
+  display: block;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 4px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 300;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.2s ease;
+  letter-spacing: 0.02em;
+}
+
+.auth-input::placeholder {
+  color: var(--text-dim);
+}
+
+.auth-input:focus {
+  border-bottom-color: var(--accent);
+}
+
+.auth-error {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.78rem;
+  color: #ff6b6b;
+  letter-spacing: 0.02em;
+}
+
+.auth-switch {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 300;
+  color: var(--text-muted);
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+.auth-link {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.tutorial-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 680px;
+}
+
+.tutorial-item {
+  display: flex;
+  gap: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 24px;
+}
+
+.tutorial-icon {
+  font-size: 1.2rem;
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.tutorial-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tutorial-title {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.tutorial-desc {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 300;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.policy-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-width: 640px;
+}
+
+.policy-block {
+  padding: 24px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.policy-block:last-child {
+  border-bottom: none;
+}
+
+.policy-heading {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.1rem;
+  font-weight: 400;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+
+.policy-text {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 300;
+  color: var(--text-muted);
+  line-height: 1.8;
+}

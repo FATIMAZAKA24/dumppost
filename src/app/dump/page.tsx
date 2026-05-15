@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
-type Section = 'workspace' | 'history' | 'profile' | 'settings';
+type Section = 'workspace' | 'history' | 'profile' | 'settings' | 'tutorials' | 'privacy' | 'usage';
 
 export default function Dump() {
   const [input, setInput] = useState('');
@@ -111,14 +111,18 @@ export default function Dump() {
             <i className="ti ti-settings" />
             {!sidebarCollapsed && <span>Settings</span>}
           </button>
-          <button className="nav-item" onClick={() => window.open('https://dumppost.io/tutorials', '_blank')}>
-            <i className="ti ti-book" />
-            {!sidebarCollapsed && <span>Tutorials</span>}
-          </button>
-          <button className="nav-item" onClick={() => window.open('https://dumppost.io/privacy', '_blank')}>
-            <i className="ti ti-shield" />
-            {!sidebarCollapsed && <span>Privacy policy</span>}
-          </button>
+          <button className="nav-item" onClick={() => setSection('tutorials')}>
+  <i className="ti ti-book" />
+  {!sidebarCollapsed && <span>Tutorials</span>}
+    </button>
+    <button className="nav-item" onClick={() => setSection('privacy')}>
+      <i className="ti ti-shield" />
+      {!sidebarCollapsed && <span>Privacy policy</span>}
+    </button>
+    <button className="nav-item" onClick={() => setSection('usage')}>
+      <i className="ti ti-file-text" />
+      {!sidebarCollapsed && <span>Usage policy</span>}
+    </button>
           <button className="nav-item logout-btn" onClick={handleLogout}>
             <i className="ti ti-logout" />
             {!sidebarCollapsed && <span>Log out</span>}
@@ -371,6 +375,109 @@ export default function Dump() {
           <span className="settings-row-title">Usage policy</span>
         </div>
         <button className="settings-action-btn" onClick={() => window.open('https://dumppost.io/usage', '_blank')}>View →</button>
+      </div>
+    </div>
+  </div>
+)}
+{/* Tutorials */}
+{section === 'tutorials' && (
+  <div className="section-page">
+    <div className="section-header">
+      <h2 className="section-title">Tutorials</h2>
+      <p className="section-subtitle">Learn how to get the most out of DumpPost.</p>
+    </div>
+    <div className="tutorial-list">
+      <div className="tutorial-item">
+        <div className="tutorial-icon"><i className="ti ti-writing" /></div>
+        <div className="tutorial-content">
+          <span className="tutorial-title">How to write a great dump</span>
+          <span className="tutorial-desc">The messier the better. Brain dump everything — bullet points, half sentences, voice note transcripts. Don't edit yourself. The more raw material you give DumpPost, the better your post will sound like you.</span>
+        </div>
+      </div>
+      <div className="tutorial-item">
+        <div className="tutorial-icon"><i className="ti ti-user-check" /></div>
+        <div className="tutorial-content">
+          <span className="tutorial-title">Your voice profile</span>
+          <span className="tutorial-desc">DumpPost learns from your onboarding answers. The more honest you were, the more your posts will sound like you. You can redo your onboarding anytime from Settings.</span>
+        </div>
+      </div>
+      <div className="tutorial-item">
+        <div className="tutorial-icon"><i className="ti ti-refresh" /></div>
+        <div className="tutorial-content">
+          <span className="tutorial-title">Using Retry effectively</span>
+          <span className="tutorial-desc">If the generated post doesn't feel right, hit Retry and add more context to your dump. The more specific you are, the better the output.</span>
+        </div>
+      </div>
+      <div className="tutorial-item">
+        <div className="tutorial-icon"><i className="ti ti-history" /></div>
+        <div className="tutorial-content">
+          <span className="tutorial-title">Your history</span>
+          <span className="tutorial-desc">Every post you generate is saved in History. You can copy any past post from there anytime.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* Privacy Policy */}
+{section === 'privacy' && (
+  <div className="section-page">
+    <div className="section-header">
+      <h2 className="section-title">Privacy Policy</h2>
+      <p className="section-subtitle">Last updated: May 2026</p>
+    </div>
+    <div className="policy-content">
+      <div className="policy-block">
+        <h3 className="policy-heading">What we collect</h3>
+        <p className="policy-text">We collect your email address, name, user type, and your answers to onboarding questions. We also store the posts you generate and your raw input dumps.</p>
+      </div>
+      <div className="policy-block">
+        <h3 className="policy-heading">How we use it</h3>
+        <p className="policy-text">Your data is used solely to generate LinkedIn posts that sound like you. We do not sell your data to third parties.</p>
+      </div>
+      <div className="policy-block">
+        <h3 className="policy-heading">Data storage</h3>
+        <p className="policy-text">Your account data is stored securely via Supabase. Your posts and onboarding answers are stored in your browser's local storage and on our servers.</p>
+      </div>
+      <div className="policy-block">
+        <h3 className="policy-heading">Your rights</h3>
+        <p className="policy-text">You can delete your account and all associated data at any time by contacting us at privacy@dumppost.io.</p>
+      </div>
+      <div className="policy-block">
+        <h3 className="policy-heading">Contact</h3>
+        <p className="policy-text">For any privacy related questions, reach us at privacy@dumppost.io.</p>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* Usage Policy */}
+{section === 'usage' && (
+  <div className="section-page">
+    <div className="section-header">
+      <h2 className="section-title">Usage Policy</h2>
+      <p className="section-subtitle">Last updated: May 2026</p>
+    </div>
+    <div className="policy-content">
+      <div className="policy-block">
+        <h3 className="policy-heading">Acceptable use</h3>
+        <p className="policy-text">DumpPost is designed to help you create authentic LinkedIn content from your own thoughts and experiences.</p>
+      </div>
+      <div className="policy-block">
+        <h3 className="policy-heading">Prohibited use</h3>
+        <p className="policy-text">You may not use DumpPost to generate misleading, harmful, or plagiarized content. Accounts found violating these terms will be suspended.</p>
+      </div>
+      <div className="policy-block">
+        <h3 className="policy-heading">AI generated content</h3>
+        <p className="policy-text">Posts generated by DumpPost are based on your input. You are responsible for reviewing content before publishing.</p>
+      </div>
+      <div className="policy-block">
+        <h3 className="policy-heading">Beta terms</h3>
+        <p className="policy-text">DumpPost is currently in beta. Features may change and we may occasionally migrate data during this period.</p>
+      </div>
+      <div className="policy-block">
+        <h3 className="policy-heading">Contact</h3>
+        <p className="policy-text">For usage related questions, reach us at hello@dumppost.io.</p>
       </div>
     </div>
   </div>
