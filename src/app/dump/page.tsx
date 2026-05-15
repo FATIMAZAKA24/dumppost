@@ -445,7 +445,7 @@ export default function Dump() {
       </div>
       <div className="policy-block">
         <h3 className="policy-heading">Contact</h3>
-        <p className="policy-text">For any privacy related questions, reach us at privacy@dumppost.io.</p>
+        <p className="policy-text">For any privacy related questions, reach us at dumppostquery@gmail.com.</p>
       </div>
     </div>
   </div>
@@ -477,7 +477,7 @@ export default function Dump() {
       </div>
       <div className="policy-block">
         <h3 className="policy-heading">Contact</h3>
-        <p className="policy-text">For usage related questions, reach us at hello@dumppost.io.</p>
+        <p className="policy-text">For usage related questions, reach us at dumppostquery@gmail.com.</p>
       </div>
     </div>
   </div>
