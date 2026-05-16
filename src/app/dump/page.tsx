@@ -24,6 +24,14 @@ export default function Dump() {
     setDark(saved === 'dark');
     document.documentElement.setAttribute('data-theme', saved);
     setName(localStorage.getItem('dp-name') || '');
+
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push('/login');
+      }
+    };
+    checkAuth();
   }, []);
 
   useEffect(() => {
