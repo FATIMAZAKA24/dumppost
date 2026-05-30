@@ -91,7 +91,6 @@ useEffect(() => {
               <i className={`ti ${sidebarCollapsed ? 'ti-layout-sidebar' : 'ti-layout-sidebar'}`} />
             </button>
           </div>
-/////
           {!sidebarCollapsed && (
           <div className="sidebar-user">
             <div className="sidebar-avatar">
@@ -103,7 +102,6 @@ useEffect(() => {
             </div>
           </div>
         )}
-//////
 
           <button className="new-post-btn" onClick={handleNewPost}>
             <i className="ti ti-pencil-plus" />
