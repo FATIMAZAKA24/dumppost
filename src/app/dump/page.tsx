@@ -53,12 +53,43 @@ useEffect(() => {
     if (input.trim().length === 0) return;
     setLoading(true);
     setOutput('');
-    await new Promise(r => setTimeout(r, 2000));
-    const post = `I've been thinking a lot about this lately — and I think it's worth sharing.\n\n${input.trim().slice(0, 180)}...\n\nThe truth is, most people don't talk about this enough. But the ones who do? They're the ones moving forward.\n\nWhat's your take on this?\n\n#LinkedIn #Growth #Authenticity`;
-    setOutput(post);
-    const history = JSON.parse(localStorage.getItem('dp-history') || '[]');
-    history.push({ post, dump: input.trim(), date: new Date().toISOString() });
-    localStorage.setItem('dp-history', JSON.stringify(history));
+
+    try {
+      const answers = JSON.parse(localStorage.getItem('dp-answers') || '[]');
+      const userType = localStorage.getItem('dp-type') || 'employed';
+      const interactionHistory = JSON.parse(localStorage.getItem('dp-history') || '[]');
+
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dump: input.trim(),
+          name,
+          userType,
+          answers,
+          interactionHistory,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.error) {
+        setOutput('Something went wrong. Please try again.');
+      } else {
+        setOutput(data.post);
+        const history = JSON.parse(localStorage.getItem('dp-history') || '[]');
+        history.push({
+          post: data.post,
+          dump: input.trim(),
+          date: new Date().toISOString(),
+          response: 'pending',
+        });
+        localStorage.setItem('dp-history', JSON.stringify(history));
+      }
+    } catch {
+      setOutput('Something went wrong. Please try again.');
+    }
+
     setLoading(false);
   };
 
@@ -209,8 +240,23 @@ useEffect(() => {
         <span className="dump-label">Your post</span>
                   {output && (
                     <div className="dump-feedback">
-                      <button className="feedback-btn" onClick={handleCopy}>{copied ? '✓ Copied' : 'Copy'}</button>
-                      <button className="feedback-btn reject" onClick={() => { setOutput(''); setInput(''); }}>↺ Retry</button>
+                      <button className="feedback-btn" onClick={() => {
+  handleCopy();
+  const history = JSON.parse(localStorage.getItem('dp-history') || '[]');
+  if (history.length > 0) {
+    history[history.length - 1].response = 'accepted';
+    localStorage.setItem('dp-history', JSON.stringify(history));
+  }
+}}>{copied ? '✓ Copied' : 'Copy'}</button>
+<button className="feedback-btn reject" onClick={() => {
+  const history = JSON.parse(localStorage.getItem('dp-history') || '[]');
+  if (history.length > 0) {
+    history[history.length - 1].response = 'rejected';
+    localStorage.setItem('dp-history', JSON.stringify(history));
+  }
+  setOutput('');
+  setInput('');
+}}>↺ Retry</button>
                     </div>
                   )}
                 </div>
