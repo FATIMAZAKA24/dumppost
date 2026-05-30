@@ -91,6 +91,19 @@ useEffect(() => {
               <i className={`ti ${sidebarCollapsed ? 'ti-layout-sidebar' : 'ti-layout-sidebar'}`} />
             </button>
           </div>
+/////
+          {!sidebarCollapsed && (
+          <div className="sidebar-user">
+            <div className="sidebar-avatar">
+              {name ? name.charAt(0).toUpperCase() : 'U'}
+            </div>
+            <div className="sidebar-user-info">
+              <span className="sidebar-user-name">{name || 'User'}</span>
+              <span className="sidebar-user-plan">Free plan</span>
+            </div>
+          </div>
+        )}
+//////
 
           <button className="new-post-btn" onClick={handleNewPost}>
             <i className="ti ti-pencil-plus" />
@@ -110,10 +123,10 @@ useEffect(() => {
         </div>
 
         <div className="sidebar-bottom">
-          <button className="nav-item upgrade-btn" onClick={() => setSection('pricing')}>
-  <i className="ti ti-star" />
-  {!sidebarCollapsed && <span>Upgrade</span>}
-</button>
+  <button className="nav-item upgrade-btn" onClick={() => setSection('pricing')}>
+    <i className="ti ti-star" />
+    {!sidebarCollapsed && <span>Upgrade plan</span>}
+  </button>
           <button className="nav-item" onClick={() => setSection('profile')}>
             <i className="ti ti-user" />
             {!sidebarCollapsed && <span>Profile</span>}
@@ -138,6 +151,7 @@ useEffect(() => {
             <i className="ti ti-logout" />
             {!sidebarCollapsed && <span>Log out</span>}
           </button>
+          
         </div>
       </aside>
 
@@ -159,9 +173,12 @@ useEffect(() => {
             <div className="dump-workspace">
               <div className="dump-panel dump-panel-left">
                 <div className="dump-panel-header">
-                  <span className="dump-label">Dump</span>
-                  <span className="dump-meta">{wordCount} {wordCount === 1 ? 'word' : 'words'}</span>
-                </div>
+  <div>
+    <span className="dump-label">Dump your thoughts</span>
+    <p style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontFamily: 'DM Sans, sans-serif', fontWeight: 300, marginTop: '2px' }}>Raw, unfiltered — exactly as they come to you</p>
+  </div>
+  <span className="dump-meta">{wordCount} {wordCount === 1 ? 'word' : 'words'}</span>
+</div>
                 <textarea
                   className="dump-input"
                   placeholder={`What's on your mind, ${name || 'there'}? Raw thoughts, bullet points, anything goes.`}
@@ -178,7 +195,10 @@ useEffect(() => {
 
               <div className="dump-panel dump-panel-right">
                 <div className="dump-panel-header">
-                  <span className="dump-label">Your post</span>
+                  <div>
+  <span className="dump-label">Your LinkedIn post</span>
+  <p style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontFamily: 'DM Sans, sans-serif', fontWeight: 300, marginTop: '2px' }}>Generated from your dump</p>
+</div>
                   {output && (
                     <div className="dump-feedback">
                       <button className="feedback-btn" onClick={handleCopy}>{copied ? '✓ Copied' : 'Copy'}</button>
@@ -250,7 +270,7 @@ useEffect(() => {
   </div>
 )}
 
-        {/* Profile */}
+{/* Profile */}
 {section === 'profile' && (
   <div className="section-page">
     <div className="section-header">
@@ -494,12 +514,13 @@ useEffect(() => {
   </div>
 )}
 
+
 {/* Pricing */}
 {section === 'pricing' && (
   <div className="section-page">
     <div className="section-header">
-      <h2 className="section-title">Upgrade</h2>
-      <p className="section-subtitle">Simple, honest pricing. No surprises.</p>
+      <h2 className="section-title">Plans</h2>
+      <p className="section-subtitle">You're in early access. Here's what's coming.</p>
     </div>
 
     <div className="pricing-grid">
@@ -507,7 +528,7 @@ useEffect(() => {
         <div className="pricing-card-top">
           <span className="pricing-plan-name">Beta</span>
           <span className="pricing-plan-price">Free</span>
-          <span className="pricing-plan-desc">You're on the free beta plan. Enjoy full access while we're building.</span>
+          <span className="pricing-plan-desc">Full access while we're in beta. No card needed, no catch.</span>
         </div>
         <div className="pricing-features">
           <div className="pricing-feature">
@@ -520,52 +541,63 @@ useEffect(() => {
           </div>
           <div className="pricing-feature">
             <i className="ti ti-check" />
-            <span>Full post history</span>
+            <span>Post history</span>
           </div>
           <div className="pricing-feature">
             <i className="ti ti-check" />
-            <span>Early access to new features</span>
+            <span>Early access to everything we ship</span>
           </div>
         </div>
         <div className="pricing-card-footer">
-          <span className="pricing-current-badge">Current plan</span>
+          <span className="pricing-current-badge">Your current plan</span>
         </div>
       </div>
 
       <div className="pricing-card pricing-card-pro">
         <div className="pricing-card-top">
-          <span className="pricing-plan-name">Pro</span>
-          <span className="pricing-plan-price">Coming soon</span>
-          <span className="pricing-plan-desc">Full access to DumpPost with priority support and advanced features.</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span className="pricing-plan-name">Pro</span>
+            <span className="pro-badge">Coming soon</span>
+          </div>
+          <span className="pricing-plan-price">Launching soon</span>
+          <span className="pricing-plan-desc">For people serious about their LinkedIn presence. Everything in Beta, plus:</span>
         </div>
         <div className="pricing-features">
           <div className="pricing-feature">
             <i className="ti ti-check" />
             <span>Everything in Beta</span>
           </div>
-          <div className="pricing-feature">
-            <i className="ti ti-check" />
-            <span>Advanced tone controls</span>
+          <div className="pricing-feature pro-locked" onClick={() => alert('This feature is coming with Pro.')}>
+            <i className="ti ti-lock" />
+            <span>Tone & style controls</span>
+            <span className="pro-tag">Pro</span>
           </div>
-          <div className="pricing-feature">
-            <i className="ti ti-check" />
+          <div className="pricing-feature pro-locked" onClick={() => alert('This feature is coming with Pro.')}>
+            <i className="ti ti-lock" />
             <span>Multiple voice profiles</span>
+            <span className="pro-tag">Pro</span>
           </div>
-          <div className="pricing-feature">
-            <i className="ti ti-check" />
+          <div className="pricing-feature pro-locked" onClick={() => alert('This feature is coming with Pro.')}>
+            <i className="ti ti-lock" />
+            <span>Post scheduling</span>
+            <span className="pro-tag">Pro</span>
+          </div>
+          <div className="pricing-feature pro-locked" onClick={() => alert('This feature is coming with Pro.')}>
+            <i className="ti ti-lock" />
             <span>Priority support</span>
+            <span className="pro-tag">Pro</span>
           </div>
         </div>
         <div className="pricing-card-footer">
           <button className="cta-btn" style={{ width: '100%' }} onClick={() => window.location.href = 'mailto:dumppostquery@gmail.com?subject=DumpPost Pro Interest'}>
-            Get notified →
+            Get notified when Pro launches →
           </button>
         </div>
       </div>
     </div>
 
     <p style={{ marginTop: '32px', fontSize: '0.78rem', color: 'var(--text-dim)', fontFamily: 'DM Sans, sans-serif', fontWeight: 300 }}>
-      Beta users get early access pricing when Pro launches. You won't lose your data or settings.
+      Beta users get locked-in early pricing when Pro launches.
     </p>
   </div>
 )}

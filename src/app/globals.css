@@ -1451,3 +1451,89 @@ body {
 @media (max-width: 600px) {
   .pricing-grid { grid-template-columns: 1fr; }
 }
+
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+
+.sidebar-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(200,240,160,0.1);
+  border: 1px solid rgba(200,240,160,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.sidebar-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.sidebar-user-name {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user-plan {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.68rem;
+  font-weight: 300;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.pro-badge {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid rgba(200,240,160,0.3);
+  padding: 3px 8px;
+  border-radius: 100px;
+}
+
+.pro-locked {
+  opacity: 0.5;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+  position: relative;
+}
+
+.pro-locked:hover {
+  opacity: 0.8;
+}
+
+.pro-tag {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid rgba(200,240,160,0.3);
+  padding: 2px 6px;
+  border-radius: 100px;
+  margin-left: auto;
+}
