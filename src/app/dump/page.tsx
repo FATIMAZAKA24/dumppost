@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 type Section = 'workspace' | 'history' | 'profile' | 'settings' | 'tutorials' | 'privacy' | 'usage' | 'pricing';
 
 export default function Dump() {
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -91,17 +92,8 @@ useEffect(() => {
               <i className={`ti ${sidebarCollapsed ? 'ti-layout-sidebar' : 'ti-layout-sidebar'}`} />
             </button>
           </div>
-          {!sidebarCollapsed && (
-          <div className="sidebar-user">
-            <div className="sidebar-avatar">
-              {name ? name.charAt(0).toUpperCase() : 'U'}
-            </div>
-            <div className="sidebar-user-info">
-              <span className="sidebar-user-name">{name || 'User'}</span>
-              <span className="sidebar-user-plan">Free plan</span>
-            </div>
-          </div>
-        )}
+          <div className="sidebar-user" onClick={() => setShowUserMenu(!showUserMenu)}>
+</div>
 
           <button className="new-post-btn" onClick={handleNewPost}>
             <i className="ti ti-pencil-plus" />
@@ -109,11 +101,11 @@ useEffect(() => {
           </button>
 
           <nav className="sidebar-nav">
-            <button className={`nav-item ${section === 'workspace' ? 'active' : ''}`} onClick={() => setSection('workspace')}>
+            <button data-tooltip="Workspace" className={`nav-item ${section === 'workspace' ? 'active' : ''}`} onClick={() => setSection('workspace')}>
               <i className="ti ti-writing" />
               {!sidebarCollapsed && <span>Workspace</span>}
             </button>
-            <button className={`nav-item ${section === 'history' ? 'active' : ''}`} onClick={() => setSection('history')}>
+            <button data-tooltip="History" className={`nav-item ${section === 'history' ? 'active' : ''}`} onClick={() => setSection('history')}>
               <i className="ti ti-history" />
               {!sidebarCollapsed && <span>History</span>}
             </button>
@@ -121,36 +113,61 @@ useEffect(() => {
         </div>
 
         <div className="sidebar-bottom">
-  <button className="nav-item upgrade-btn" onClick={() => setSection('pricing')}>
+  <button data-tooltip="Upgrade plan" className="nav-item upgrade-btn" onClick={() => setSection('pricing')}>
     <i className="ti ti-star" />
     {!sidebarCollapsed && <span>Upgrade plan</span>}
   </button>
-          <button className="nav-item" onClick={() => setSection('profile')}>
-            <i className="ti ti-user" />
-            {!sidebarCollapsed && <span>Profile</span>}
-          </button>
-          <button className="nav-item" onClick={() => setSection('settings')}>
-            <i className="ti ti-settings" />
-            {!sidebarCollapsed && <span>Settings</span>}
-          </button>
-          <button className="nav-item" onClick={() => setSection('tutorials')}>
-  <i className="ti ti-book" />
-  {!sidebarCollapsed && <span>Tutorials</span>}
-    </button>
-    <button className="nav-item" onClick={() => setSection('privacy')}>
-      <i className="ti ti-shield" />
-      {!sidebarCollapsed && <span>Privacy policy</span>}
-    </button>
-    <button className="nav-item" onClick={() => setSection('usage')}>
-      <i className="ti ti-file-text" />
-      {!sidebarCollapsed && <span>Usage policy</span>}
-    </button>
-          <button className="nav-item logout-btn" onClick={handleLogout}>
-            <i className="ti ti-logout" />
-            {!sidebarCollapsed && <span>Log out</span>}
-          </button>
-          
+  <button data-tooltip="Tutorials" className="nav-item" onClick={() => setSection('tutorials')}>
+    <i className="ti ti-book" />
+    {!sidebarCollapsed && <span>Tutorials</span>}
+  </button>
+  <button data-tooltip="Privacy policy" className="nav-item" onClick={() => setSection('privacy')}>
+    <i className="ti ti-shield" />
+    {!sidebarCollapsed && <span>Privacy policy</span>}
+  </button>
+  <button data-tooltip="Usage policy" className="nav-item" onClick={() => setSection('usage')}>
+    <i className="ti ti-file-text" />
+    {!sidebarCollapsed && <span>Usage policy</span>}
+  </button>
+  
+
+  <div className="sidebar-user" onClick={() => setShowUserMenu(!showUserMenu)}>
+    <div className="sidebar-avatar">
+      {name ? name.charAt(0).toUpperCase() : 'U'}
+    </div>
+    {!sidebarCollapsed && (
+      <>
+        <div className="sidebar-user-info">
+          <span className="sidebar-user-name">{name || 'User'}</span>
+          <span className="sidebar-user-plan">Free plan</span>
         </div>
+        <i className={`ti ${showUserMenu ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginLeft: 'auto' }} />
+      </>
+
+    )}
+    
+
+    {showUserMenu && (
+      <div className="user-menu">
+        <button className="user-menu-item" onClick={(e) => { e.stopPropagation(); setSection('profile'); setShowUserMenu(false); }}>
+          <i className="ti ti-user" />
+          <span>Profile</span>
+        </button>
+        <button className="user-menu-item" onClick={(e) => { e.stopPropagation(); setSection('settings'); setShowUserMenu(false); }}>
+          <i className="ti ti-settings" />
+          <span>Settings</span>
+        </button>
+        <button className="user-menu-item danger" onClick={(e) => { e.stopPropagation(); handleLogout(); }}>
+          <i className="ti ti-logout" />
+          <span>Log out</span>
+        </button>
+      </div>
+    )}
+  </div>
+  
+</div>
+          
+        
       </aside>
 
       {/* Main content */}
@@ -171,20 +188,16 @@ useEffect(() => {
             <div className="dump-workspace">
               <div className="dump-panel dump-panel-left">
                 <div className="dump-panel-header">
-  <div>
-    <span className="dump-label">Dump your thoughts</span>
-    <p style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontFamily: 'DM Sans, sans-serif', fontWeight: 300, marginTop: '2px' }}>Raw, unfiltered — exactly as they come to you</p>
-  </div>
+  <span className="dump-label">Dump</span>
   <span className="dump-meta">{wordCount} {wordCount === 1 ? 'word' : 'words'}</span>
 </div>
                 <textarea
                   className="dump-input"
-                  placeholder={`What's on your mind, ${name || 'there'}? Raw thoughts, bullet points, anything goes.`}
+                  placeholder={`What's on your mind, ${name || 'there'}?\n\nJust dump it — bullet points, half sentences, voice note transcripts, whatever's in your head. The messier the better. We'll clean it up.`}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                 />
                 <div className="dump-panel-footer">
-                  <p className="dump-hint-text">The messier the better. We'll clean it up.</p>
                   <button className="cta-btn" onClick={handleGenerate} disabled={input.trim().length === 0 || loading}>
                     {loading ? 'Writing...' : 'Generate →'}
                   </button>
@@ -193,10 +206,7 @@ useEffect(() => {
 
               <div className="dump-panel dump-panel-right">
                 <div className="dump-panel-header">
-                  <div>
-  <span className="dump-label">Your LinkedIn post</span>
-  <p style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontFamily: 'DM Sans, sans-serif', fontWeight: 300, marginTop: '2px' }}>Generated from your dump</p>
-</div>
+        <span className="dump-label">Your post</span>
                   {output && (
                     <div className="dump-feedback">
                       <button className="feedback-btn" onClick={handleCopy}>{copied ? '✓ Copied' : 'Copy'}</button>
@@ -205,12 +215,24 @@ useEffect(() => {
                   )}
                 </div>
                 {!output && !loading && (
-                <div className="dump-empty">
-                  <p className="dump-empty-text">
-                    <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>Dump your thoughts on the left — we'll turn them into a post worth sharing.</span>
-                  </p>
-                </div>
-              )}
+  <div className="dump-empty-ghost">
+    <div className="ghost-label">Your post will appear here</div>
+    <div className="ghost-line ghost-line-full" />
+    <div className="ghost-line ghost-line-full" />
+    <div className="ghost-line ghost-line-3q" />
+    <div className="ghost-spacer" />
+    <div className="ghost-line ghost-line-full" />
+    <div className="ghost-line ghost-line-full" />
+    <div className="ghost-line ghost-line-half" />
+    <div className="ghost-spacer" />
+    <div className="ghost-line ghost-line-full" />
+    <div className="ghost-line ghost-line-3q" />
+    <div className="ghost-spacer" />
+    <div className="ghost-line ghost-line-quarter" />
+    <div className="ghost-line ghost-line-quarter" />
+    <div className="ghost-line ghost-line-quarter" />
+  </div>
+)}
                 {loading && (
                   <div className="dump-loading-wrap">
                     <div className="loading-dots">
@@ -521,7 +543,7 @@ useEffect(() => {
       <p className="section-subtitle">You're in early access. Here's what's coming.</p>
     </div>
 
-    <div className="pricing-grid">
+    <div className="pricing-grid" style={{ margin: '0 auto' }}>
       <div className="pricing-card pricing-card-free">
         <div className="pricing-card-top">
           <span className="pricing-plan-name">Beta</span>
@@ -587,9 +609,9 @@ useEffect(() => {
           </div>
         </div>
         <div className="pricing-card-footer">
-          <button className="cta-btn" style={{ width: '100%' }} onClick={() => window.location.href = 'mailto:dumppostquery@gmail.com?subject=DumpPost Pro Interest'}>
-            Get notified when Pro launches →
-          </button>
+          <button className="settings-action-btn" onClick={() => window.location.href = 'mailto:dumppostquery@gmail.com?subject=DumpPost Pro Interest'}>
+  Get notified →
+</button>
         </div>
       </div>
     </div>
