@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 export default function Preload() {
   const [dark, setDark] = useState(true);
   const [name, setName] = useState('');
-  const [visible, setVisible] = useState(true);
   const [phase, setPhase] = useState(0);
   const router = useRouter();
 
@@ -16,11 +15,8 @@ export default function Preload() {
     document.documentElement.setAttribute('data-theme', saved);
     setName(localStorage.getItem('dp-name') || '');
 
-    const timers = [
-      setTimeout(() => setPhase(1), 2000),
-      setTimeout(() => router.push('/onboarding/questions'), 4500),
-    ];
-    return () => timers.forEach(clearTimeout);
+    const timer = setTimeout(() => setPhase(1), 2000);
+    return () => clearTimeout(timer);
   }, [router]);
 
   return (
@@ -35,7 +31,7 @@ export default function Preload() {
           <span className="dump-loading-dot" />
         </div>
 
-        <div style={{ minHeight: '80px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+        <div style={{ minHeight: '80px', position: 'relative', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <p style={{
             fontFamily: 'Cormorant Garamond, serif',
             fontSize: '1.4rem',
@@ -68,6 +64,19 @@ export default function Preload() {
             6 quick questions. No right or wrong answers. Just talk to us like you would a friend.
           </p>
         </div>
+
+        <button
+          className="cta-btn"
+          onClick={() => router.push('/onboarding/questions')}
+          style={{
+            marginTop: '48px',
+            opacity: phase === 1 ? 1 : 0,
+            transition: 'opacity 0.5s ease',
+            pointerEvents: phase === 1 ? 'auto' : 'none',
+          }}
+        >
+          Let's go →
+        </button>
       </div>
     </main>
   );

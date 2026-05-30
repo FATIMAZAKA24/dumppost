@@ -34,14 +34,17 @@ export default function Signup() {
     setLoading(true);
     setError('');
 
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({ email, password });
 
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-    } else {
-      router.push('/onboarding');
-    }
+if (error) {
+  setError(error.message);
+  setLoading(false);
+} else if (data.session) {
+  router.push('/onboarding');
+} else {
+  setError('Please check your email to confirm your account.');
+  setLoading(false);
+}
   };
 
   return (

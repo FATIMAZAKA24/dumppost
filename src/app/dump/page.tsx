@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
-type Section = 'workspace' | 'history' | 'profile' | 'settings' | 'tutorials' | 'privacy' | 'usage';
+type Section = 'workspace' | 'history' | 'profile' | 'settings' | 'tutorials' | 'privacy' | 'usage' | 'pricing';
 
 export default function Dump() {
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [dark, setDark] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -18,19 +19,21 @@ export default function Dump() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
+useEffect(() => {
     setMounted(true);
     const saved = localStorage.getItem('dp-theme') || 'dark';
     setDark(saved === 'dark');
     document.documentElement.setAttribute('data-theme', saved);
-    setName(localStorage.getItem('dp-name') || '');
 
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/login');
-      }
-    };
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    router.push('/login');
+  } else {
+    if (session?.user?.email) setEmail(session.user.email);
+    setName(localStorage.getItem('dp-name') || '');
+  }
+};
     checkAuth();
   }, []);
 
@@ -107,10 +110,10 @@ export default function Dump() {
         </div>
 
         <div className="sidebar-bottom">
-          <button className="nav-item upgrade-btn" onClick={() => setSection('settings')}>
-            <i className="ti ti-star" />
-            {!sidebarCollapsed && <span>Upgrade</span>}
-          </button>
+          <button className="nav-item upgrade-btn" onClick={() => setSection('pricing')}>
+  <i className="ti ti-star" />
+  {!sidebarCollapsed && <span>Upgrade</span>}
+</button>
           <button className="nav-item" onClick={() => setSection('profile')}>
             <i className="ti ti-user" />
             {!sidebarCollapsed && <span>Profile</span>}
@@ -339,7 +342,7 @@ export default function Dump() {
           <span className="settings-row-title">Email</span>
           <span className="settings-row-desc">Your account email address</span>
         </div>
-        <span className="settings-row-value">{localStorage.getItem('dp-name') || '—'}</span>
+        <span className="settings-row-value">{email || '—'}</span>
       </div>
 
       <div className="settings-row">
@@ -376,13 +379,13 @@ export default function Dump() {
         <div className="settings-row-info">
           <span className="settings-row-title">Privacy policy</span>
         </div>
-        <button className="settings-action-btn" onClick={() => window.open('https://dumppost.io/privacy', '_blank')}>View →</button>
+        <button className="settings-action-btn" onClick={() => setSection('privacy')}>View →</button>
       </div>
       <div className="settings-row">
         <div className="settings-row-info">
           <span className="settings-row-title">Usage policy</span>
         </div>
-        <button className="settings-action-btn" onClick={() => window.open('https://dumppost.io/usage', '_blank')}>View →</button>
+        <button className="settings-action-btn" onClick={() => setSection('usage')}>View →</button>
       </div>
     </div>
   </div>
@@ -488,6 +491,82 @@ export default function Dump() {
         <p className="policy-text">For usage related questions, reach us at dumppostquery@gmail.com.</p>
       </div>
     </div>
+  </div>
+)}
+
+{/* Pricing */}
+{section === 'pricing' && (
+  <div className="section-page">
+    <div className="section-header">
+      <h2 className="section-title">Upgrade</h2>
+      <p className="section-subtitle">Simple, honest pricing. No surprises.</p>
+    </div>
+
+    <div className="pricing-grid">
+      <div className="pricing-card pricing-card-free">
+        <div className="pricing-card-top">
+          <span className="pricing-plan-name">Beta</span>
+          <span className="pricing-plan-price">Free</span>
+          <span className="pricing-plan-desc">You're on the free beta plan. Enjoy full access while we're building.</span>
+        </div>
+        <div className="pricing-features">
+          <div className="pricing-feature">
+            <i className="ti ti-check" />
+            <span>Unlimited post generation</span>
+          </div>
+          <div className="pricing-feature">
+            <i className="ti ti-check" />
+            <span>Personal voice profiling</span>
+          </div>
+          <div className="pricing-feature">
+            <i className="ti ti-check" />
+            <span>Full post history</span>
+          </div>
+          <div className="pricing-feature">
+            <i className="ti ti-check" />
+            <span>Early access to new features</span>
+          </div>
+        </div>
+        <div className="pricing-card-footer">
+          <span className="pricing-current-badge">Current plan</span>
+        </div>
+      </div>
+
+      <div className="pricing-card pricing-card-pro">
+        <div className="pricing-card-top">
+          <span className="pricing-plan-name">Pro</span>
+          <span className="pricing-plan-price">Coming soon</span>
+          <span className="pricing-plan-desc">Full access to DumpPost with priority support and advanced features.</span>
+        </div>
+        <div className="pricing-features">
+          <div className="pricing-feature">
+            <i className="ti ti-check" />
+            <span>Everything in Beta</span>
+          </div>
+          <div className="pricing-feature">
+            <i className="ti ti-check" />
+            <span>Advanced tone controls</span>
+          </div>
+          <div className="pricing-feature">
+            <i className="ti ti-check" />
+            <span>Multiple voice profiles</span>
+          </div>
+          <div className="pricing-feature">
+            <i className="ti ti-check" />
+            <span>Priority support</span>
+          </div>
+        </div>
+        <div className="pricing-card-footer">
+          <button className="cta-btn" style={{ width: '100%' }} onClick={() => window.location.href = 'mailto:dumppostquery@gmail.com?subject=DumpPost Pro Interest'}>
+            Get notified →
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <p style={{ marginTop: '32px', fontSize: '0.78rem', color: 'var(--text-dim)', fontFamily: 'DM Sans, sans-serif', fontWeight: 300 }}>
+      Beta users get early access pricing when Pro launches. You won't lose your data or settings.
+    </p>
   </div>
 )}
 
