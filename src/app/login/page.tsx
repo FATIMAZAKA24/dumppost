@@ -30,19 +30,23 @@ export default function Login() {
 
   if (!mounted) return null;
 
-  const handleLogin = async () => {
-    if (!email || !password) return;
-    setLoading(true);
-    setError('');
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-if (error) {
-  setError(error.message);
-  setLoading(false);
-} else {
+const handleLogin = async () => {
+  if (!email || !password) return;
+  setLoading(true);
+  setError('');
+
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    setError(error.message);
+    setLoading(false);
+    return;
+  }
+
   if (data.user) {
     localStorage.setItem('dp-user-id', data.user.id);
 
-    // Fetch user data from DB
+    // Fetch user basic info
     const { data: userData } = await supabase
       .from('users')
       .select('name, user_type')
@@ -54,22 +58,23 @@ if (error) {
       localStorage.setItem('dp-type', userData.user_type || '');
     }
 
-    // Check if onboarding done
+    // Fetch onboarding answers
     const { data: profile } = await supabase
       .from('user_profiles')
-      .select('id, onboarding_answers')
+      .select('onboarding_answers')
       .eq('user_id', data.user.id)
       .single();
 
-    if (profile) {
-      localStorage.setItem('dp-answers', JSON.stringify(profile.onboarding_answers || []));
+    if (profile?.onboarding_answers) {
+      localStorage.setItem('dp-answers', JSON.stringify(profile.onboarding_answers));
       router.push('/dump');
     } else {
       router.push('/onboarding');
     }
   }
-}
-  };
+
+  setLoading(false);
+};
 
   return (
     <main data-theme={dark ? 'dark' : 'light'} className="landing">

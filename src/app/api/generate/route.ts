@@ -1,85 +1,136 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(req: NextRequest) {
   try {
-    const { dump, name, userType, answers, interactionHistory } = await req.json();
+    const { dump, userId, previousOutput } = await req.json();
 
-    const employedQuestions = [
-      "What are you working on right now?",
-      "What's the most interesting part of it?",
-      "What's been giving you the most trouble with it?",
-      "Who do you want reading your posts — and what do you want them to think when they do?",
-      "What part of your work do you actually enjoy? Feel free to ramble a bit.",
-      "Anything specific you want DumpPost to keep in mind? Or we can just learn as we go.",
-    ];
+    // Fetch extracted profile signals from DB
+    const { data: profile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
 
-    const studentQuestions = [
-      "What are you currently studying or learning?",
-      "What's the most interesting thing you've come across recently in your field?",
-      "What's something you've been trying to figure out or struggling with?",
-      "Who do you want reading your posts — and what do you want them to think when they do?",
-      "What part of your field do you actually enjoy? Feel free to ramble a bit.",
-      "Anything specific you want DumpPost to keep in mind? Or we can just learn as we go.",
-    ];
+    // Fetch user basic info
+    const { data: user } = await supabaseAdmin
+      .from('users')
+      .select('name, user_type')
+      .eq('id', userId)
+      .single();
 
-    const questions = userType === 'student' ? studentQuestions : employedQuestions;
+    // Fetch last 5 rejection reasons
+    const { data: rejections } = await supabaseAdmin
+      .from('interactions')
+      .select('rejection_reason')
+      .eq('user_id', userId)
+      .eq('user_response', 'rejected')
+      .not('rejection_reason', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(5);
 
-    const onboardingConversation = answers?.length > 0
-      ? answers.map((a: string, i: number) => `Q: ${questions[i]}\nA: ${a}`).join('\n\n')
-      : 'No onboarding answers available.';
+    // Fetch last 3 edited posts
+    const { data: edits } = await supabaseAdmin
+      .from('interactions')
+      .select('generated_output, edits_made')
+      .eq('user_id', userId)
+      .eq('user_response', 'edited')
+      .not('edits_made', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(5);
 
-    const acceptedPosts = interactionHistory
-      ?.filter((i: { response: string }) => i.response === 'accepted')
-      ?.slice(-3)
-      ?.map((i: { post: string }, idx: number) => `Past accepted post ${idx + 1}:\n${i.post}`)
-      ?.join('\n\n') || '';
+    const rejectionContext = rejections?.length
+      ? rejections.map((r: {rejection_reason: string}) => `- ${r.rejection_reason}`).join('\n')
+      : null;
+
+    const editContext = edits?.length
+      ? edits.map((e: {generated_output: string; edits_made: string}, i: number) =>
+          `Edit ${i + 1}:\nOriginal: ${e.generated_output?.slice(0, 200)}...\nEdited to: ${e.edits_made?.slice(0, 200)}...`
+        ).join('\n\n')
+      : null;
+
+    const profileContext = profile ? `
+Domain: ${profile.domain || 'unknown'}
+Role: ${profile.role || 'unknown'}
+Project type: ${profile.project_type || 'unknown'}
+Baseline confidence: ${profile.baseline_confidence || 'unknown'}
+Enthusiasm level: ${profile.enthusiasm_level || 'unknown'}
+Technical depth: ${profile.technical_depth || 'unknown'}
+Explanation style: ${profile.explanation_style || 'unknown'}
+Emotional honesty: ${profile.emotional_honesty || 'unknown'}
+Problem solving style: ${profile.problem_solving_style || 'unknown'}
+Vulnerability level: ${profile.vulnerability_level || 'unknown'}
+Audience: ${profile.audience || 'unknown'}
+Posting goal: ${profile.posting_goal || 'unknown'}
+Self awareness: ${profile.self_awareness || 'unknown'}
+Desired perception: ${profile.desired_perception || 'unknown'}
+Passion areas: ${profile.passion_areas || 'unknown'}
+Sentence rhythm: ${profile.sentence_rhythm || 'unknown'}
+Structure preference: ${profile.structure_preference || 'unknown'}
+Real vocabulary: ${profile.real_vocabulary || 'unknown'}
+Explicit preferences: ${profile.explicit_preferences || 'none'}
+AI tool relationship: ${profile.ai_tool_relationship || 'unknown'}
+Personality type: ${profile.personality_type || 'unknown'}` : 'No profile available.';
 
     const systemPrompt = `You are DumpPost — an AI that converts raw, unfiltered thoughts into authentic, personalised LinkedIn posts.
 
 Your core job: make the post sound exactly like THIS person, not a generic LinkedIn voice.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 1 — EXTRACT SIGNALS FROM ONBOARDING
+LAYER 1 — USER VOICE PROFILE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Read the onboarding conversation holistically. Extract the following signals:
-- Domain and role
-- Enthusiasm level (how excited do they sound?)
-- Technical depth (how technical is their vocabulary?)
-- Emotional honesty (how vulnerable are they willing to be?)
-- Target audience and how they want to be perceived
-- Passion areas (what genuinely lights them up?)
-- Natural sentence rhythm (short punchy? Long flowing?)
-- Real vocabulary (what words do THEY use, not what sounds professional?)
-- Personality type (analytical? Storyteller? Straight shooter? Reflective?)
+Name: ${user?.name || 'Unknown'}
+Type: ${user?.user_type === 'student' ? 'Student' : 'Working Professional'}
 
-USER PROFILE:
-Name: ${name || 'Unknown'}
-Type: ${userType === 'student' ? 'Student' : 'Working Professional'}
-
-ONBOARDING CONVERSATION:
-${onboardingConversation}
-
-${acceptedPosts ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-POSTS THIS USER HAS ACCEPTED BEFORE (use as voice reference):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${acceptedPosts}` : ''}
+${profileContext}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 2 — GENERATE THE POST
+LAYER 2 — VOICE CORRECTIONS (EDITS MADE BY USER)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Now write a LinkedIn post based on their raw dump below.
+${editContext ? `These are posts the user edited — the difference between original and edited version is your strongest voice signal. Learn from what they changed:\n\n${editContext}` : 'No edits yet.'}
 
-RULES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LAYER 3 — WHAT TO AVOID (REJECTION REASONS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${rejectionContext ? `User has rejected posts for these reasons. Do NOT repeat these:\n${rejectionContext}` : 'No rejections yet.'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LAYER 4 — DUMPPOST RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - Write in first person as the user — their voice, their words
 - Hook first — first line must stop the scroll
 - Never start with "I" as the opening word
-- Structure: hook → insight or story → takeaway → optional question to audience
-- Length: 150–250 words
-- No hollow buzzwords ("game-changer", "excited to announce", "humbled")
-- No corporate fluff — if they're casual, be casual. If they're precise, be precise.
-- Match their natural sentence rhythm from the onboarding answers
-- Add 3–5 relevant hashtags at the end on a new line
-- Output ONLY the LinkedIn post — no preamble, no explanation, no title`;
+- Never use "Excited to share", "Humbled", "Game-changer", "Thrilled"
+- No corporate fluff — match their natural style from profile
+- No bullet points unless their sentence_rhythm and structure_preference suggest it
+- Output length proportional to input richness
+- Structure: hook → insight or story → takeaway → optional question
+- Add 3–5 relevant hashtags at the end
+- Output ONLY the LinkedIn post — no preamble, no explanation
+
+${previousOutput ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LAYER 5 — PREVIOUS VERSION (REFINE THIS, DON'T REWRITE)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The user rejected this version. Keep what worked, fix what didn't based on their rejection reason:
+
+${previousOutput}` : ''}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — INTERNAL REASONING (do this silently before writing)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Before writing the post, reason through:
+- What is the core insight in this dump?
+- What tone matches this user's profile?
+- What sentence rhythm should I use?
+- What hook would work for their audience?
+
+Output your reasoning as: <reasoning>your thoughts here</reasoning>
+Then output the post.`;
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -94,18 +145,23 @@ RULES:
           { role: 'user', content: `My raw thoughts:\n\n${dump}` },
         ],
         temperature: 0.75,
-        max_tokens: 700,
+        max_tokens: 900,
       }),
     });
 
     const data = await response.json();
-    const post = data.choices?.[0]?.message?.content?.trim();
+    const fullResponse = data.choices?.[0]?.message?.content?.trim();
 
-    if (!post) {
+    if (!fullResponse) {
       return NextResponse.json({ error: 'No post generated' }, { status: 500 });
     }
 
-    return NextResponse.json({ post });
+    // Extract reasoning and post separately
+    const reasoningMatch = fullResponse.match(/<reasoning>([\s\S]*?)<\/reasoning>/);
+    const reasoning = reasoningMatch ? reasoningMatch[1].trim() : null;
+    const post = fullResponse.replace(/<reasoning>[\s\S]*?<\/reasoning>/g, '').trim();
+
+    return NextResponse.json({ post, reasoning });
 
   } catch (err) {
     console.error('Generate error:', err);

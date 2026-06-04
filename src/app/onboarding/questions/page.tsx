@@ -83,7 +83,16 @@ export default function Questions() {
             name: savedName,
             user_type: savedType,
           });
-
+// Extract and save voice signals in background
+fetch('/api/extract-profile', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    userId: session.user.id,
+    answers: newAnswers,
+    userType: savedType,
+  }),
+}).catch(console.error);
           await supabase.from('user_profiles').upsert({
             user_id: session.user.id,
             onboarding_answers: newAnswers,

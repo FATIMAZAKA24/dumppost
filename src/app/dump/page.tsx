@@ -7,7 +7,17 @@ import { supabase } from '@/lib/supabase';
 type Section = 'workspace' | 'history' | 'profile' | 'settings' | 'tutorials' | 'privacy' | 'usage' | 'pricing';
 
 export default function Dump() {
-  const [dbHistory, setDbHistory] = useState<Array<{id: string; generated_output: string; raw_input: string; created_at: string; user_response?: string}>>([]);
+  const [previousOutput, setPreviousOutput] = useState('');
+  const [selectedReasons, setSelectedReasons] = useState<string[]>([]);
+const [dbHistory, setDbHistory] = useState<Array<{
+  id: string; 
+  generated_output: string; 
+  raw_input: string; 
+  created_at: string; 
+  user_response?: string;
+  version_group?: string;
+  rejection_reason?: string;
+}>>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [showRetryPanel, setShowRetryPanel] = useState(false);
   const [selectedReason, setSelectedReason] = useState('');
@@ -72,10 +82,10 @@ export default function Dump() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         const { data } = await supabase
-          .from('interactions')
-          .select('id, generated_output, raw_input, created_at, user_response')
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: false });
+        .from('interactions')
+        .select('id, generated_output, raw_input, created_at, user_response, version_group, rejection_reason')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false });
         setDbHistory(data || []);
       }
     } catch (e) {
@@ -84,42 +94,24 @@ export default function Dump() {
     setHistoryLoading(false);
   };
 
-  const handleGenerate = async () => {
+const handleGenerate = async () => {
     if (input.trim().length === 0) return;
     setLoading(true);
     setOutput('');
     setCurrentInteractionId(null);
 
     try {
-      const answers = JSON.parse(localStorage.getItem('dp-answers') || '[]');
-      const userType = localStorage.getItem('dp-type') || 'employed';
       const { data: { session } } = await supabase.auth.getSession();
-
-      // Fetch rejection reasons from DB for this user
-      let rejectionReasons: string[] = [];
-      if (session?.user) {
-        const { data: rejected } = await supabase
-          .from('interactions')
-          .select('rejection_reason')
-          .eq('user_id', session.user.id)
-          .eq('user_response', 'rejected')
-          .not('rejection_reason', 'is', null)
-          .order('created_at', { ascending: false })
-          .limit(5);
-        rejectionReasons = rejected?.map((r: {rejection_reason: string}) => r.rejection_reason).filter(Boolean) || [];
-      }
-
+      const [versionGroup, setVersionGroup] = useState<string | null>(null);
       const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          dump: input.trim(),
-          name,
-          userType,
-          answers,
-          rejectionReasons,
-        }),
-      });
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    dump: input.trim(),
+    userId: session?.user?.id,
+    previousOutput: previousOutput || null,
+  }),
+});
 
       const data = await res.json();
 
@@ -128,17 +120,21 @@ export default function Dump() {
       } else {
         setOutput(data.post);
 
-        // Save to Supabase
         if (session?.user) {
-          const { data: interaction } = await supabase
-            .from('interactions')
-            .insert({
-              user_id: session.user.id,
-              raw_input: input.trim(),
-              generated_output: data.post,
-            })
-            .select()
-            .single();
+          const newVersionGroup = previousOutput ? versionGroup : crypto.randomUUID();
+setVersionGroup(newVersionGroup);
+
+const { data: interaction } = await supabase
+  .from('interactions')
+  .insert({
+    user_id: session.user.id,
+    raw_input: input.trim(),
+    generated_output: data.post,
+    llm_reasoning: data.reasoning || null,
+    version_group: newVersionGroup,
+  })
+  .select()
+  .single();
           if (interaction) setCurrentInteractionId(interaction.id);
         }
       }
@@ -373,16 +369,22 @@ export default function Dump() {
                   <div className="retry-panel">
                     <p className="retry-label">What didn't work?</p>
                     <div className="retry-options">
-                      {['Too AI-sounding', 'Wrong tone for my audience', 'Missed the point entirely', 'Length was off', 'Felt too generic'].map((reason) => (
-                        <button
-                          key={reason}
-                          className={`retry-option ${selectedReason === reason ? 'selected' : ''}`}
-                          onClick={() => { setSelectedReason(selectedReason === reason ? '' : reason); setCustomReason(''); }}
-                        >
-                          <span className="retry-dot" />
-                          {reason}
-                        </button>
-                      ))}
+                     {['Too AI-sounding', 'Wrong tone for my audience', 'Missed the point entirely', 'Length was off', 'Felt too generic'].map((reason) => (
+  <button
+    key={reason}
+    className={`retry-option ${selectedReasons.includes(reason) ? 'selected' : ''}`}
+    onClick={() => {
+      setSelectedReasons(prev =>
+        prev.includes(reason)
+          ? prev.filter(r => r !== reason)
+          : [...prev, reason]
+      );
+    }}
+  >
+    <span className="retry-dot" />
+    {reason}
+  </button>
+))}
                       <div className="retry-custom-wrap">
                         <span className="retry-dot" />
                         <input
@@ -399,19 +401,27 @@ export default function Dump() {
                       </button>
                       <button
                         className="cta-btn"
-                        disabled={!selectedReason && !customReason.trim()}
+                        disabled={selectedReasons.length === 0 && !customReason.trim()}
                         onClick={async () => {
-                          const reason = selectedReason || customReason.trim();
-                          if (currentInteractionId) {
-                            await supabase.from('interactions').update({ user_response: 'rejected', rejection_reason: reason }).eq('id', currentInteractionId);
-                          }
-                          setOutput('');
-                          setInput('');
-                          setShowRetryPanel(false);
-                          setSelectedReason('');
-                          setCustomReason('');
-                          setCurrentInteractionId(null);
-                        }}
+                        const reason = [
+                          ...selectedReasons,
+                          customReason.trim()
+                        ].filter(Boolean).join('; ');
+                        
+                        if (currentInteractionId) {
+                          await supabase.from('interactions').update({ 
+                            user_response: 'rejected', 
+                            rejection_reason: reason 
+                          }).eq('id', currentInteractionId);
+                        }
+                        setShowRetryPanel(false);
+                        setSelectedReasons([]);
+                        setCustomReason('');
+                        setCurrentInteractionId(null);
+                        setPreviousOutput(output);
+                        setOutput('');
+                        handleGenerate();
+}}
                       >
                         Regenerate →
                       </button>
@@ -445,17 +455,46 @@ export default function Dump() {
               </div>
             ) : (
               <div className="history-list">
-                {dbHistory.map((item) => (
-                  <div key={item.id} className="history-item">
-                    <div className="history-item-header">
-                      <span className="history-date">{new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                      <button className="settings-action-btn" onClick={() => navigator.clipboard.writeText(item.generated_output)}>Copy</button>
-                    </div>
-                    <p className="history-post">{item.generated_output}</p>
-                    <p className="history-dump-label">Original dump</p>
-                    <p className="history-dump">{item.raw_input}</p>
-                  </div>
-                ))}
+                {(() => {
+  // Group by version_group
+  const groups = dbHistory.reduce((acc: Record<string, typeof dbHistory>, item) => {
+    const key = item.version_group || item.id;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+
+  return Object.values(groups).map((versions) => {
+    const latest = versions[0];
+    const hasVersions = versions.length > 1;
+    return (
+      <div key={latest.id} className="history-item">
+        <div className="history-item-header">
+          <span className="history-date">
+            {new Date(latest.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            {hasVersions && <span className="version-badge">{versions.length} versions</span>}
+          </span>
+          <button className="settings-action-btn" onClick={() => navigator.clipboard.writeText(latest.generated_output)}>Copy</button>
+        </div>
+        <p className="history-post">{latest.generated_output}</p>
+        {hasVersions && (
+          <details className="version-history">
+            <summary className="version-summary">See all {versions.length} versions</summary>
+            {versions.slice(1).map((v, i) => (
+              <div key={v.id} className="version-item">
+                <span className="version-label">Version {versions.length - i - 1}</span>
+                <p className="history-post" style={{ fontSize: '0.82rem', opacity: 0.7 }}>{v.generated_output}</p>
+                {v.rejection_reason && <p className="version-rejection">Rejected: {v.rejection_reason}</p>}
+              </div>
+            ))}
+          </details>
+        )}
+        <p className="history-dump-label">Original dump</p>
+        <p className="history-dump">{latest.raw_input}</p>
+      </div>
+    );
+  });
+})()}
               </div>
             )}
           </div>
