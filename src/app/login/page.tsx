@@ -34,18 +34,41 @@ export default function Login() {
     if (!email || !password) return;
     setLoading(true);
     setError('');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-    } else {
-      const answers = localStorage.getItem('dp-answers');
-      if (answers) {
-        router.push('/dump');
-      } else {
-        router.push('/onboarding');
-      }
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+if (error) {
+  setError(error.message);
+  setLoading(false);
+} else {
+  if (data.user) {
+    localStorage.setItem('dp-user-id', data.user.id);
+
+    // Fetch user data from DB
+    const { data: userData } = await supabase
+      .from('users')
+      .select('name, user_type')
+      .eq('id', data.user.id)
+      .single();
+
+    if (userData) {
+      localStorage.setItem('dp-name', userData.name || '');
+      localStorage.setItem('dp-type', userData.user_type || '');
     }
+
+    // Check if onboarding done
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('id, onboarding_answers')
+      .eq('user_id', data.user.id)
+      .single();
+
+    if (profile) {
+      localStorage.setItem('dp-answers', JSON.stringify(profile.onboarding_answers || []));
+      router.push('/dump');
+    } else {
+      router.push('/onboarding');
+    }
+  }
+}
   };
 
   return (

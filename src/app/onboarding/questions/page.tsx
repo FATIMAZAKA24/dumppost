@@ -1,5 +1,6 @@
 'use client';
 
+import { supabase } from '@/lib/supabase';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -61,22 +62,49 @@ export default function Questions() {
 
   const questions = userType === 'student' ? studentQuestions : employedQuestions;
 
-  const handleNext = () => {
+ const handleNext = async () => {
     if (input.trim().length === 0) return;
     const newAnswers = [...answers, input.trim()];
     setAnswers(newAnswers);
     setAnimating(true);
 
-    setTimeout(() => {
-      setInput('');
-      setAnimating(false);
-      if (current + 1 >= questions.length) {
-        localStorage.setItem('dp-answers', JSON.stringify(newAnswers));
-        router.push('/loading');
-      } else {
-        setCurrent(current + 1);
+    if (current + 1 >= questions.length) {
+      localStorage.setItem('dp-answers', JSON.stringify(newAnswers));
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const savedName = localStorage.getItem('dp-name') || '';
+          const savedType = localStorage.getItem('dp-type') || 'employed';
+
+          await supabase.from('users').upsert({
+            id: session.user.id,
+            email: session.user.email,
+            name: savedName,
+            user_type: savedType,
+          });
+
+          await supabase.from('user_profiles').upsert({
+            user_id: session.user.id,
+            onboarding_answers: newAnswers,
+          });
+        }
+      } catch (e) {
+        console.error('Failed to save profile:', e);
       }
-    }, 300);
+
+      setTimeout(() => {
+        setInput('');
+        setAnimating(false);
+        router.push('/loading');
+      }, 300);
+    } else {
+      setTimeout(() => {
+        setInput('');
+        setAnimating(false);
+        setCurrent(current + 1);
+      }, 300);
+    }
   };
 
   const progress = ((current) / questions.length) * 100;

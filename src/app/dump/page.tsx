@@ -7,6 +7,13 @@ import { supabase } from '@/lib/supabase';
 type Section = 'workspace' | 'history' | 'profile' | 'settings' | 'tutorials' | 'privacy' | 'usage' | 'pricing';
 
 export default function Dump() {
+  const [dbHistory, setDbHistory] = useState<Array<{id: string; generated_output: string; raw_input: string; created_at: string; user_response?: string}>>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [showRetryPanel, setShowRetryPanel] = useState(false);
+  const [selectedReason, setSelectedReason] = useState('');
+  const [customReason, setCustomReason] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedOutput, setEditedOutput] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
@@ -18,23 +25,29 @@ export default function Dump() {
   const [copied, setCopied] = useState(false);
   const [section, setSection] = useState<Section>('workspace');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [currentInteractionId, setCurrentInteractionId] = useState<string | null>(null);
   const router = useRouter();
 
-useEffect(() => {
+  useEffect(() => {
     setMounted(true);
     const saved = localStorage.getItem('dp-theme') || 'dark';
     setDark(saved === 'dark');
     document.documentElement.setAttribute('data-theme', saved);
 
     const checkAuth = async () => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
-    router.push('/login');
-  } else {
-    if (session?.user?.email) setEmail(session.user.email);
-    setName(localStorage.getItem('dp-name') || '');
-  }
-};
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push('/login');
+      } else {
+        if (session?.user?.email) setEmail(session.user.email);
+        const storedUserId = localStorage.getItem('dp-user-id');
+        if (storedUserId !== session.user.id) {
+          localStorage.clear();
+          localStorage.setItem('dp-user-id', session.user.id);
+        }
+        setName(localStorage.getItem('dp-name') || '');
+      }
+    };
     checkAuth();
   }, []);
 
@@ -45,19 +58,56 @@ useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [dark, mounted]);
 
+  useEffect(() => {
+    if (section === 'history') loadHistory();
+  }, [section]);
+
   if (!mounted) return null;
 
   const wordCount = input.trim() === '' ? 0 : input.trim().split(/\s+/).length;
+
+  const loadHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data } = await supabase
+          .from('interactions')
+          .select('id, generated_output, raw_input, created_at, user_response')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false });
+        setDbHistory(data || []);
+      }
+    } catch (e) {
+      console.error('Failed to load history:', e);
+    }
+    setHistoryLoading(false);
+  };
 
   const handleGenerate = async () => {
     if (input.trim().length === 0) return;
     setLoading(true);
     setOutput('');
+    setCurrentInteractionId(null);
 
     try {
       const answers = JSON.parse(localStorage.getItem('dp-answers') || '[]');
       const userType = localStorage.getItem('dp-type') || 'employed';
-      const interactionHistory = JSON.parse(localStorage.getItem('dp-history') || '[]');
+      const { data: { session } } = await supabase.auth.getSession();
+
+      // Fetch rejection reasons from DB for this user
+      let rejectionReasons: string[] = [];
+      if (session?.user) {
+        const { data: rejected } = await supabase
+          .from('interactions')
+          .select('rejection_reason')
+          .eq('user_id', session.user.id)
+          .eq('user_response', 'rejected')
+          .not('rejection_reason', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(5);
+        rejectionReasons = rejected?.map((r: {rejection_reason: string}) => r.rejection_reason).filter(Boolean) || [];
+      }
 
       const res = await fetch('/api/generate', {
         method: 'POST',
@@ -67,7 +117,7 @@ useEffect(() => {
           name,
           userType,
           answers,
-          interactionHistory,
+          rejectionReasons,
         }),
       });
 
@@ -77,14 +127,20 @@ useEffect(() => {
         setOutput('Something went wrong. Please try again.');
       } else {
         setOutput(data.post);
-        const history = JSON.parse(localStorage.getItem('dp-history') || '[]');
-        history.push({
-          post: data.post,
-          dump: input.trim(),
-          date: new Date().toISOString(),
-          response: 'pending',
-        });
-        localStorage.setItem('dp-history', JSON.stringify(history));
+
+        // Save to Supabase
+        if (session?.user) {
+          const { data: interaction } = await supabase
+            .from('interactions')
+            .insert({
+              user_id: session.user.id,
+              raw_input: input.trim(),
+              generated_output: data.post,
+            })
+            .select()
+            .single();
+          if (interaction) setCurrentInteractionId(interaction.id);
+        }
       }
     } catch {
       setOutput('Something went wrong. Please try again.');
@@ -108,6 +164,9 @@ useEffect(() => {
   const handleNewPost = () => {
     setInput('');
     setOutput('');
+    setCurrentInteractionId(null);
+    setShowRetryPanel(false);
+    setIsEditing(false);
     setSection('workspace');
   };
 
@@ -120,11 +179,9 @@ useEffect(() => {
           <div className="sidebar-logo">
             {!sidebarCollapsed && <span className="wordmark" style={{ marginBottom: 0, fontSize: '0.75rem' }}>DumpPost</span>}
             <button className="sidebar-collapse-btn" onClick={() => setSidebarCollapsed(!sidebarCollapsed)}>
-              <i className={`ti ${sidebarCollapsed ? 'ti-layout-sidebar' : 'ti-layout-sidebar'}`} />
+              <i className="ti ti-layout-sidebar" />
             </button>
           </div>
-          <div className="sidebar-user" onClick={() => setShowUserMenu(!showUserMenu)}>
-</div>
 
           <button className="new-post-btn" onClick={handleNewPost}>
             <i className="ti ti-pencil-plus" />
@@ -144,61 +201,51 @@ useEffect(() => {
         </div>
 
         <div className="sidebar-bottom">
-  <button data-tooltip="Upgrade plan" className="nav-item upgrade-btn" onClick={() => setSection('pricing')}>
-    <i className="ti ti-star" />
-    {!sidebarCollapsed && <span>Upgrade plan</span>}
-  </button>
-  <button data-tooltip="Tutorials" className="nav-item" onClick={() => setSection('tutorials')}>
-    <i className="ti ti-book" />
-    {!sidebarCollapsed && <span>Tutorials</span>}
-  </button>
-  <button data-tooltip="Privacy policy" className="nav-item" onClick={() => setSection('privacy')}>
-    <i className="ti ti-shield" />
-    {!sidebarCollapsed && <span>Privacy policy</span>}
-  </button>
-  <button data-tooltip="Usage policy" className="nav-item" onClick={() => setSection('usage')}>
-    <i className="ti ti-file-text" />
-    {!sidebarCollapsed && <span>Usage policy</span>}
-  </button>
-  
+          <button data-tooltip="Upgrade plan" className="nav-item upgrade-btn" onClick={() => setSection('pricing')}>
+            <i className="ti ti-star" />
+            {!sidebarCollapsed && <span>Upgrade plan</span>}
+          </button>
+          <button data-tooltip="Tutorials" className="nav-item" onClick={() => setSection('tutorials')}>
+            <i className="ti ti-book" />
+            {!sidebarCollapsed && <span>Tutorials</span>}
+          </button>
+          <button data-tooltip="Privacy policy" className="nav-item" onClick={() => setSection('privacy')}>
+            <i className="ti ti-shield" />
+            {!sidebarCollapsed && <span>Privacy policy</span>}
+          </button>
+          <button data-tooltip="Usage policy" className="nav-item" onClick={() => setSection('usage')}>
+            <i className="ti ti-file-text" />
+            {!sidebarCollapsed && <span>Usage policy</span>}
+          </button>
 
-  <div className="sidebar-user" onClick={() => setShowUserMenu(!showUserMenu)}>
-    <div className="sidebar-avatar">
-      {name ? name.charAt(0).toUpperCase() : 'U'}
-    </div>
-    {!sidebarCollapsed && (
-      <>
-        <div className="sidebar-user-info">
-          <span className="sidebar-user-name">{name || 'User'}</span>
-          <span className="sidebar-user-plan">Free plan</span>
+          <div className="sidebar-user" onClick={() => setShowUserMenu(!showUserMenu)}>
+            <div className="sidebar-avatar">
+              {name ? name.charAt(0).toUpperCase() : 'U'}
+            </div>
+            {!sidebarCollapsed && (
+              <>
+                <div className="sidebar-user-info">
+                  <span className="sidebar-user-name">{name || 'User'}</span>
+                  <span className="sidebar-user-plan">Free plan</span>
+                </div>
+                <i className={`ti ${showUserMenu ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginLeft: 'auto' }} />
+              </>
+            )}
+            {showUserMenu && (
+              <div className="user-menu">
+                <button className="user-menu-item" onClick={(e) => { e.stopPropagation(); setSection('profile'); setShowUserMenu(false); }}>
+                  <i className="ti ti-user" /><span>Profile</span>
+                </button>
+                <button className="user-menu-item" onClick={(e) => { e.stopPropagation(); setSection('settings'); setShowUserMenu(false); }}>
+                  <i className="ti ti-settings" /><span>Settings</span>
+                </button>
+                <button className="user-menu-item danger" onClick={(e) => { e.stopPropagation(); handleLogout(); }}>
+                  <i className="ti ti-logout" /><span>Log out</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-        <i className={`ti ${showUserMenu ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginLeft: 'auto' }} />
-      </>
-
-    )}
-    
-
-    {showUserMenu && (
-      <div className="user-menu">
-        <button className="user-menu-item" onClick={(e) => { e.stopPropagation(); setSection('profile'); setShowUserMenu(false); }}>
-          <i className="ti ti-user" />
-          <span>Profile</span>
-        </button>
-        <button className="user-menu-item" onClick={(e) => { e.stopPropagation(); setSection('settings'); setShowUserMenu(false); }}>
-          <i className="ti ti-settings" />
-          <span>Settings</span>
-        </button>
-        <button className="user-menu-item danger" onClick={(e) => { e.stopPropagation(); handleLogout(); }}>
-          <i className="ti ti-logout" />
-          <span>Log out</span>
-        </button>
-      </div>
-    )}
-  </div>
-  
-</div>
-          
-        
       </aside>
 
       {/* Main content */}
@@ -219,9 +266,9 @@ useEffect(() => {
             <div className="dump-workspace">
               <div className="dump-panel dump-panel-left">
                 <div className="dump-panel-header">
-  <span className="dump-label">Dump</span>
-  <span className="dump-meta">{wordCount} {wordCount === 1 ? 'word' : 'words'}</span>
-</div>
+                  <span className="dump-label">Dump</span>
+                  <span className="dump-meta">{wordCount} {wordCount === 1 ? 'word' : 'words'}</span>
+                </div>
                 <textarea
                   className="dump-input"
                   placeholder={`What's on your mind, ${name || 'there'}?\n\nJust dump it — bullet points, half sentences, voice note transcripts, whatever's in your head. The messier the better. We'll clean it up.`}
@@ -237,48 +284,64 @@ useEffect(() => {
 
               <div className="dump-panel dump-panel-right">
                 <div className="dump-panel-header">
-        <span className="dump-label">Your post</span>
-                  {output && (
+                  <span className="dump-label">Your post</span>
+                  {output && !showRetryPanel && !isEditing && (
                     <div className="dump-feedback">
+                      <button className="feedback-btn" onClick={async () => {
+                        handleCopy();
+                        if (currentInteractionId) {
+                          await supabase.from('interactions').update({ user_response: 'accepted' }).eq('id', currentInteractionId);
+                        }
+                      }}>{copied ? '✓ Copied' : 'Copy'}</button>
                       <button className="feedback-btn" onClick={() => {
-  handleCopy();
-  const history = JSON.parse(localStorage.getItem('dp-history') || '[]');
-  if (history.length > 0) {
-    history[history.length - 1].response = 'accepted';
-    localStorage.setItem('dp-history', JSON.stringify(history));
-  }
-}}>{copied ? '✓ Copied' : 'Copy'}</button>
-<button className="feedback-btn reject" onClick={() => {
-  const history = JSON.parse(localStorage.getItem('dp-history') || '[]');
-  if (history.length > 0) {
-    history[history.length - 1].response = 'rejected';
-    localStorage.setItem('dp-history', JSON.stringify(history));
-  }
-  setOutput('');
-  setInput('');
-}}>↺ Retry</button>
+                        setIsEditing(true);
+                        setEditedOutput(output);
+                      }}>✎ Refine</button>
+                      <button className="feedback-btn reject" onClick={() => {
+                        setShowRetryPanel(true);
+                        setSelectedReason('');
+                        setCustomReason('');
+                      }}>↺ Retry</button>
+                    </div>
+                  )}
+                  {isEditing && (
+                    <div className="dump-feedback">
+                      <button className="feedback-btn" onClick={async () => {
+                        navigator.clipboard.writeText(editedOutput);
+                        setOutput(editedOutput);
+                        setIsEditing(false);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                        if (currentInteractionId) {
+                          await supabase.from('interactions').update({ user_response: 'edited', edits_made: editedOutput }).eq('id', currentInteractionId);
+                        }
+                      }}>✓ Copy edited</button>
+                      <button className="feedback-btn" onClick={() => { setOutput(editedOutput); setIsEditing(false); }}>Save</button>
+                      <button className="feedback-btn reject" onClick={() => { setIsEditing(false); setEditedOutput(''); }}>Cancel</button>
                     </div>
                   )}
                 </div>
+
                 {!output && !loading && (
-  <div className="dump-empty-ghost">
-    <div className="ghost-label">Your post will appear here</div>
-    <div className="ghost-line ghost-line-full" />
-    <div className="ghost-line ghost-line-full" />
-    <div className="ghost-line ghost-line-3q" />
-    <div className="ghost-spacer" />
-    <div className="ghost-line ghost-line-full" />
-    <div className="ghost-line ghost-line-full" />
-    <div className="ghost-line ghost-line-half" />
-    <div className="ghost-spacer" />
-    <div className="ghost-line ghost-line-full" />
-    <div className="ghost-line ghost-line-3q" />
-    <div className="ghost-spacer" />
-    <div className="ghost-line ghost-line-quarter" />
-    <div className="ghost-line ghost-line-quarter" />
-    <div className="ghost-line ghost-line-quarter" />
-  </div>
-)}
+                  <div className="dump-empty-ghost">
+                    <div className="ghost-label">Your post will appear here</div>
+                    <div className="ghost-line ghost-line-full" />
+                    <div className="ghost-line ghost-line-full" />
+                    <div className="ghost-line ghost-line-3q" />
+                    <div className="ghost-spacer" />
+                    <div className="ghost-line ghost-line-full" />
+                    <div className="ghost-line ghost-line-full" />
+                    <div className="ghost-line ghost-line-half" />
+                    <div className="ghost-spacer" />
+                    <div className="ghost-line ghost-line-full" />
+                    <div className="ghost-line ghost-line-3q" />
+                    <div className="ghost-spacer" />
+                    <div className="ghost-line ghost-line-quarter" />
+                    <div className="ghost-line ghost-line-quarter" />
+                    <div className="ghost-line ghost-line-quarter" />
+                  </div>
+                )}
+
                 {loading && (
                   <div className="dump-loading-wrap">
                     <div className="loading-dots">
@@ -289,9 +352,70 @@ useEffect(() => {
                     <p className="dump-loading-label">Writing your post...</p>
                   </div>
                 )}
-                {output && !loading && (
+
+                {output && !loading && !showRetryPanel && !isEditing && (
                   <div className="dump-output-wrap">
                     <div className="dump-output">{output}</div>
+                  </div>
+                )}
+
+                {output && !loading && isEditing && (
+                  <textarea
+                    className="dump-input"
+                    value={editedOutput}
+                    onChange={(e) => setEditedOutput(e.target.value)}
+                    style={{ padding: '24px 32px', flex: 1 }}
+                    autoFocus
+                  />
+                )}
+
+                {showRetryPanel && (
+                  <div className="retry-panel">
+                    <p className="retry-label">What didn't work?</p>
+                    <div className="retry-options">
+                      {['Too AI-sounding', 'Wrong tone for my audience', 'Missed the point entirely', 'Length was off', 'Felt too generic'].map((reason) => (
+                        <button
+                          key={reason}
+                          className={`retry-option ${selectedReason === reason ? 'selected' : ''}`}
+                          onClick={() => { setSelectedReason(selectedReason === reason ? '' : reason); setCustomReason(''); }}
+                        >
+                          <span className="retry-dot" />
+                          {reason}
+                        </button>
+                      ))}
+                      <div className="retry-custom-wrap">
+                        <span className="retry-dot" />
+                        <input
+                          className="retry-custom-input"
+                          placeholder="Something else? Describe it..."
+                          value={customReason}
+                          onChange={(e) => { setCustomReason(e.target.value); if (e.target.value) setSelectedReason(''); }}
+                        />
+                      </div>
+                    </div>
+                    <div className="retry-footer">
+                      <button className="feedback-btn" onClick={() => { setShowRetryPanel(false); setSelectedReason(''); setCustomReason(''); }}>
+                        Cancel
+                      </button>
+                      <button
+                        className="cta-btn"
+                        disabled={!selectedReason && !customReason.trim()}
+                        onClick={async () => {
+                          const reason = selectedReason || customReason.trim();
+                          if (currentInteractionId) {
+                            await supabase.from('interactions').update({ user_response: 'rejected', rejection_reason: reason }).eq('id', currentInteractionId);
+                          }
+                          setOutput('');
+                          setInput('');
+                          setShowRetryPanel(false);
+                          setSelectedReason('');
+                          setCustomReason('');
+                          setCurrentInteractionId(null);
+                        }}
+                      >
+                        Regenerate →
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -300,373 +424,261 @@ useEffect(() => {
         )}
 
         {/* History */}
-{section === 'history' && (
-  <div className="section-page">
-    <div className="section-header">
-      <h2 className="section-title">History</h2>
-      <p className="section-subtitle">Your past generated posts.</p>
-    </div>
-
-    {(() => {
-      const history = JSON.parse(localStorage.getItem('dp-history') || '[]');
-      if (history.length === 0) return (
-        <div className="history-empty">
-          <i className="ti ti-writing" style={{ fontSize: '2rem', color: 'var(--text-dim)', marginBottom: '12px' }} />
-          <p className="section-subtitle">No posts yet. Generate your first one from the workspace.</p>
-        </div>
-      );
-      return (
-        <div className="history-list">
-          {history.reverse().map((item: { post: string; date: string; dump: string }, i: number) => (
-            <div key={i} className="history-item">
-              <div className="history-item-header">
-                <span className="history-date">{new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                <button className="settings-action-btn" onClick={() => {
-                  navigator.clipboard.writeText(item.post);
-                }}>Copy</button>
-              </div>
-              <p className="history-post">{item.post}</p>
-              <p className="history-dump-label">Original dump</p>
-              <p className="history-dump">{item.dump}</p>
+        {section === 'history' && (
+          <div className="section-page">
+            <div className="section-header">
+              <h2 className="section-title">History</h2>
+              <p className="section-subtitle">Your past generated posts.</p>
             </div>
-          ))}
-        </div>
-      );
-    })()}
+            {historyLoading ? (
+              <div className="history-empty">
+                <div className="loading-dots">
+                  <span className="dump-loading-dot" />
+                  <span className="dump-loading-dot" />
+                  <span className="dump-loading-dot" />
+                </div>
+              </div>
+            ) : dbHistory.length === 0 ? (
+              <div className="history-empty">
+                <i className="ti ti-writing" style={{ fontSize: '2rem', color: 'var(--text-dim)', marginBottom: '12px' }} />
+                <p className="section-subtitle">No posts yet. Generate your first one from the workspace.</p>
+              </div>
+            ) : (
+              <div className="history-list">
+                {dbHistory.map((item) => (
+                  <div key={item.id} className="history-item">
+                    <div className="history-item-header">
+                      <span className="history-date">{new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                      <button className="settings-action-btn" onClick={() => navigator.clipboard.writeText(item.generated_output)}>Copy</button>
+                    </div>
+                    <p className="history-post">{item.generated_output}</p>
+                    <p className="history-dump-label">Original dump</p>
+                    <p className="history-dump">{item.raw_input}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Profile */}
+        {section === 'profile' && (
+          <div className="section-page">
+            <div className="section-header">
+              <h2 className="section-title">Profile</h2>
+              <p className="section-subtitle">How DumpPost knows you.</p>
+            </div>
+            <div className="profile-grid">
+              <div className="profile-card">
+                <span className="profile-card-label">Name</span>
+                <span className="profile-card-value">{name || '—'}</span>
+              </div>
+              <div className="profile-card">
+                <span className="profile-card-label">Type</span>
+                <span className="profile-card-value" style={{ textTransform: 'capitalize' }}>
+                  {localStorage.getItem('dp-type') === 'employed' ? 'Working Professional' : localStorage.getItem('dp-type') === 'student' ? 'Student' : '—'}
+                </span>
+              </div>
+            </div>
+            <div className="section-divider" />
+            <div className="section-subheader">
+              <h3 className="section-subtitle" style={{ color: 'var(--text)', marginBottom: '4px' }}>Your onboarding answers</h3>
+              <p className="section-subtitle">These shape how your posts sound like you.</p>
+            </div>
+            <div className="answers-list">
+              {(() => {
+                const answers = JSON.parse(localStorage.getItem('dp-answers') || '[]');
+                const type = localStorage.getItem('dp-type');
+                const employedQuestions = ["What are you working on right now?", "What's the most interesting part of it?", "What's been giving you the most trouble with it?", "Who do you want reading your posts — and what do you want them to think when they do?", "What part of your work do you actually enjoy?", "Anything specific you want DumpPost to keep in mind?"];
+                const studentQuestions = ["What are you currently studying or learning?", "What's the most interesting thing you've come across recently?", "What's something you've been trying to figure out or struggling with?", "Who do you want reading your posts — and what do you want them to think when they do?", "What part of your field do you actually enjoy?", "Anything specific you want DumpPost to keep in mind?"];
+                const questions = type === 'student' ? studentQuestions : employedQuestions;
+                if (answers.length === 0) return <p className="section-subtitle">No answers yet — complete onboarding first.</p>;
+                return answers.map((answer: string, i: number) => (
+                  <div key={i} className="answer-item">
+                    <span className="answer-q">{questions[i]}</span>
+                    <span className="answer-a">{answer}</span>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* Settings */}
+        {section === 'settings' && (
+          <div className="section-page">
+            <div className="section-header">
+              <h2 className="section-title">Settings</h2>
+              <p className="section-subtitle">Manage your preferences.</p>
+            </div>
+            <div className="settings-group">
+              <p className="settings-group-label">Appearance</p>
+              <div className="settings-row">
+                <div className="settings-row-info">
+                  <span className="settings-row-title">Theme</span>
+                  <span className="settings-row-desc">Switch between dark and light mode</span>
+                </div>
+                <button className="settings-toggle-btn" onClick={() => setDark(!dark)}>{dark ? '🌙 Dark' : '☀️ Light'}</button>
+              </div>
+            </div>
+            <div className="section-divider" />
+            <div className="settings-group">
+              <p className="settings-group-label">Account</p>
+              <div className="settings-row">
+                <div className="settings-row-info">
+                  <span className="settings-row-title">Email</span>
+                  <span className="settings-row-desc">Your account email address</span>
+                </div>
+                <span className="settings-row-value">{email || '—'}</span>
+              </div>
+              <div className="settings-row">
+                <div className="settings-row-info">
+                  <span className="settings-row-title">Redo onboarding</span>
+                  <span className="settings-row-desc">Reset your profile and answer questions again</span>
+                </div>
+                <button className="settings-action-btn" onClick={() => { localStorage.removeItem('dp-answers'); localStorage.removeItem('dp-type'); localStorage.removeItem('dp-name'); router.push('/onboarding'); }}>Reset</button>
+              </div>
+              <div className="settings-row">
+                <div className="settings-row-info">
+                  <span className="settings-row-title">Log out</span>
+                  <span className="settings-row-desc">Sign out of your account</span>
+                </div>
+                <button className="settings-action-btn danger" onClick={handleLogout}>Log out</button>
+              </div>
+              <div className="settings-row">
+  <div className="settings-row-info">
+    <span className="settings-row-title">Delete account</span>
+    <span className="settings-row-desc">Permanently delete your account and all your data</span>
   </div>
-)}
-
-{/* Profile */}
-{section === 'profile' && (
-  <div className="section-page">
-    <div className="section-header">
-      <h2 className="section-title">Profile</h2>
-      <p className="section-subtitle">How DumpPost knows you.</p>
-    </div>
-
-    <div className="profile-grid">
-      <div className="profile-card">
-        <span className="profile-card-label">Name</span>
-        <span className="profile-card-value">{localStorage.getItem('dp-name') || '—'}</span>
-      </div>
-
-      <div className="profile-card">
-        <span className="profile-card-label">Type</span>
-        <span className="profile-card-value" style={{ textTransform: 'capitalize' }}>
-          {localStorage.getItem('dp-type') === 'employed' ? 'Working Professional' : localStorage.getItem('dp-type') === 'student' ? 'Student' : '—'}
-        </span>
-      </div>
-    </div>
-
-    <div className="section-divider" />
-
-    <div className="section-subheader">
-      <h3 className="section-subtitle" style={{ color: 'var(--text)', marginBottom: '4px' }}>Your onboarding answers</h3>
-      <p className="section-subtitle">These shape how your posts sound like you.</p>
-    </div>
-
-    <div className="answers-list">
-      {(() => {
-        const answers = JSON.parse(localStorage.getItem('dp-answers') || '[]');
-        const type = localStorage.getItem('dp-type');
-        const employedQuestions = [
-          "What are you working on right now?",
-          "What's the most interesting part of it?",
-          "What's been giving you the most trouble with it?",
-          "Who do you want reading your posts — and what do you want them to think when they do?",
-          "What part of your work do you actually enjoy?",
-          "Anything specific you want DumpPost to keep in mind?",
-        ];
-        const studentQuestions = [
-          "What are you currently studying or learning?",
-          "What's the most interesting thing you've come across recently?",
-          "What's something you've been trying to figure out or struggling with?",
-          "Who do you want reading your posts — and what do you want them to think when they do?",
-          "What part of your field do you actually enjoy?",
-          "Anything specific you want DumpPost to keep in mind?",
-        ];
-        const questions = type === 'student' ? studentQuestions : employedQuestions;
-        if (answers.length === 0) return <p className="section-subtitle">No answers yet — complete onboarding first.</p>;
-        return answers.map((answer: string, i: number) => (
-          <div key={i} className="answer-item">
-            <span className="answer-q">{questions[i]}</span>
-            <span className="answer-a">{answer}</span>
+<button className="settings-action-btn danger" onClick={async () => {
+  const confirmed = window.confirm('Are you sure? This will permanently delete your account and all your posts. This cannot be undone.');
+  if (!confirmed) return;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      const res = await fetch('/api/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: session.user.id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await supabase.auth.signOut();
+        localStorage.clear();
+        router.push('/');
+      } else {
+        alert('Something went wrong. Please try again.');
+      }
+    }
+  } catch (e) {
+    console.error('Failed to delete account:', e);
+    alert('Something went wrong. Please try again.');
+  }
+}}>Delete account</button>
+</div>
+            </div>
+            <div className="section-divider" />
+            <div className="settings-group">
+              <p className="settings-group-label">Legal</p>
+              <div className="settings-row">
+                <div className="settings-row-info"><span className="settings-row-title">Privacy policy</span></div>
+                <button className="settings-action-btn" onClick={() => setSection('privacy')}>View →</button>
+              </div>
+              <div className="settings-row">
+                <div className="settings-row-info"><span className="settings-row-title">Usage policy</span></div>
+                <button className="settings-action-btn" onClick={() => setSection('usage')}>View →</button>
+              </div>
+            </div>
           </div>
-              ));
-            })()}
+        )}
+
+        {/* Tutorials */}
+        {section === 'tutorials' && (
+          <div className="section-page">
+            <div className="section-header">
+              <h2 className="section-title">Tutorials</h2>
+              <p className="section-subtitle">Learn how to get the most out of DumpPost.</p>
+            </div>
+            <div className="tutorial-list">
+              <div className="tutorial-item"><div className="tutorial-icon"><i className="ti ti-writing" /></div><div className="tutorial-content"><span className="tutorial-title">How to write a great dump</span><span className="tutorial-desc">The messier the better. Brain dump everything — bullet points, half sentences, voice note transcripts. Don't edit yourself. The more raw material you give DumpPost, the better your post will sound like you.</span></div></div>
+              <div className="tutorial-item"><div className="tutorial-icon"><i className="ti ti-user-check" /></div><div className="tutorial-content"><span className="tutorial-title">Your voice profile</span><span className="tutorial-desc">DumpPost learns from your onboarding answers. The more honest you were, the more your posts will sound like you. You can redo your onboarding anytime from Settings.</span></div></div>
+              <div className="tutorial-item"><div className="tutorial-icon"><i className="ti ti-refresh" /></div><div className="tutorial-content"><span className="tutorial-title">Using Retry effectively</span><span className="tutorial-desc">If the generated post doesn't feel right, hit Retry and add more context to your dump. The more specific you are, the better the output.</span></div></div>
+              <div className="tutorial-item"><div className="tutorial-icon"><i className="ti ti-history" /></div><div className="tutorial-content"><span className="tutorial-title">Your history</span><span className="tutorial-desc">Every post you generate is saved in History. You can copy any past post from there anytime.</span></div></div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
- {/* Settings */}
-{section === 'settings' && (
-  <div className="section-page">
-    <div className="section-header">
-      <h2 className="section-title">Settings</h2>
-      <p className="section-subtitle">Manage your preferences.</p>
-    </div>
-
-    <div className="settings-group">
-      <p className="settings-group-label">Appearance</p>
-      <div className="settings-row">
-        <div className="settings-row-info">
-          <span className="settings-row-title">Theme</span>
-          <span className="settings-row-desc">Switch between dark and light mode</span>
-        </div>
-        <button className="settings-toggle-btn" onClick={() => setDark(!dark)}>
-          {dark ? '🌙 Dark' : '☀️ Light'}
-        </button>
-      </div>
-    </div>
-
-    <div className="section-divider" />
-
-    <div className="settings-group">
-      <p className="settings-group-label">Account</p>
-      <div className="settings-row">
-        <div className="settings-row-info">
-          <span className="settings-row-title">Email</span>
-          <span className="settings-row-desc">Your account email address</span>
-        </div>
-        <span className="settings-row-value">{email || '—'}</span>
-      </div>
-
-      <div className="settings-row">
-        <div className="settings-row-info">
-          <span className="settings-row-title">Redo onboarding</span>
-          <span className="settings-row-desc">Reset your profile and answer questions again</span>
-        </div>
-        <button className="settings-action-btn" onClick={() => {
-          localStorage.removeItem('dp-answers');
-          localStorage.removeItem('dp-type');
-          localStorage.removeItem('dp-name');
-          router.push('/onboarding');
-        }}>
-          Reset
-        </button>
-      </div>
-
-      <div className="settings-row">
-        <div className="settings-row-info">
-          <span className="settings-row-title">Log out</span>
-          <span className="settings-row-desc">Sign out of your account</span>
-        </div>
-        <button className="settings-action-btn danger" onClick={handleLogout}>
-          Log out
-        </button>
-      </div>
-    </div>
-
-    <div className="section-divider" />
-
-    <div className="settings-group">
-      <p className="settings-group-label">Legal</p>
-      <div className="settings-row">
-        <div className="settings-row-info">
-          <span className="settings-row-title">Privacy policy</span>
-        </div>
-        <button className="settings-action-btn" onClick={() => setSection('privacy')}>View →</button>
-      </div>
-      <div className="settings-row">
-        <div className="settings-row-info">
-          <span className="settings-row-title">Usage policy</span>
-        </div>
-        <button className="settings-action-btn" onClick={() => setSection('usage')}>View →</button>
-      </div>
-    </div>
-  </div>
-)}
-{/* Tutorials */}
-{section === 'tutorials' && (
-  <div className="section-page">
-    <div className="section-header">
-      <h2 className="section-title">Tutorials</h2>
-      <p className="section-subtitle">Learn how to get the most out of DumpPost.</p>
-    </div>
-    <div className="tutorial-list">
-      <div className="tutorial-item">
-        <div className="tutorial-icon"><i className="ti ti-writing" /></div>
-        <div className="tutorial-content">
-          <span className="tutorial-title">How to write a great dump</span>
-          <span className="tutorial-desc">The messier the better. Brain dump everything — bullet points, half sentences, voice note transcripts. Don't edit yourself. The more raw material you give DumpPost, the better your post will sound like you.</span>
-        </div>
-      </div>
-      <div className="tutorial-item">
-        <div className="tutorial-icon"><i className="ti ti-user-check" /></div>
-        <div className="tutorial-content">
-          <span className="tutorial-title">Your voice profile</span>
-          <span className="tutorial-desc">DumpPost learns from your onboarding answers. The more honest you were, the more your posts will sound like you. You can redo your onboarding anytime from Settings.</span>
-        </div>
-      </div>
-      <div className="tutorial-item">
-        <div className="tutorial-icon"><i className="ti ti-refresh" /></div>
-        <div className="tutorial-content">
-          <span className="tutorial-title">Using Retry effectively</span>
-          <span className="tutorial-desc">If the generated post doesn't feel right, hit Retry and add more context to your dump. The more specific you are, the better the output.</span>
-        </div>
-      </div>
-      <div className="tutorial-item">
-        <div className="tutorial-icon"><i className="ti ti-history" /></div>
-        <div className="tutorial-content">
-          <span className="tutorial-title">Your history</span>
-          <span className="tutorial-desc">Every post you generate is saved in History. You can copy any past post from there anytime.</span>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
-
-{/* Privacy Policy */}
-{section === 'privacy' && (
-  <div className="section-page">
-    <div className="section-header">
-      <h2 className="section-title">Privacy Policy</h2>
-      <p className="section-subtitle">Last updated: May 2026</p>
-    </div>
-    <div className="policy-content">
-      <div className="policy-block">
-        <h3 className="policy-heading">What we collect</h3>
-        <p className="policy-text">We collect your email address, name, user type, and your answers to onboarding questions. We also store the posts you generate and your raw input dumps.</p>
-      </div>
-      <div className="policy-block">
-        <h3 className="policy-heading">How we use it</h3>
-        <p className="policy-text">Your data is used solely to generate LinkedIn posts that sound like you. We do not sell your data to third parties.</p>
-      </div>
-      <div className="policy-block">
-        <h3 className="policy-heading">Data storage</h3>
-        <p className="policy-text">Your account data is stored securely via Supabase. Your posts and onboarding answers are stored in your browser's local storage and on our servers.</p>
-      </div>
-      <div className="policy-block">
-        <h3 className="policy-heading">Your rights</h3>
-        <p className="policy-text">You can delete your account and all associated data at any time by contacting us at privacy@dumppost.io.</p>
-      </div>
-      <div className="policy-block">
-        <h3 className="policy-heading">Contact</h3>
-        <p className="policy-text">For any privacy related questions, reach us at dumppostquery@gmail.com.</p>
-      </div>
-    </div>
-  </div>
-)}
-
-{/* Usage Policy */}
-{section === 'usage' && (
-  <div className="section-page">
-    <div className="section-header">
-      <h2 className="section-title">Usage Policy</h2>
-      <p className="section-subtitle">Last updated: May 2026</p>
-    </div>
-    <div className="policy-content">
-      <div className="policy-block">
-        <h3 className="policy-heading">Acceptable use</h3>
-        <p className="policy-text">DumpPost is designed to help you create authentic LinkedIn content from your own thoughts and experiences.</p>
-      </div>
-      <div className="policy-block">
-        <h3 className="policy-heading">Prohibited use</h3>
-        <p className="policy-text">You may not use DumpPost to generate misleading, harmful, or plagiarized content. Accounts found violating these terms will be suspended.</p>
-      </div>
-      <div className="policy-block">
-        <h3 className="policy-heading">AI generated content</h3>
-        <p className="policy-text">Posts generated by DumpPost are based on your input. You are responsible for reviewing content before publishing.</p>
-      </div>
-      <div className="policy-block">
-        <h3 className="policy-heading">Beta terms</h3>
-        <p className="policy-text">DumpPost is currently in beta. Features may change and we may occasionally migrate data during this period.</p>
-      </div>
-      <div className="policy-block">
-        <h3 className="policy-heading">Contact</h3>
-        <p className="policy-text">For usage related questions, reach us at dumppostquery@gmail.com.</p>
-      </div>
-    </div>
-  </div>
-)}
-
-
-{/* Pricing */}
-{section === 'pricing' && (
-  <div className="section-page">
-    <div className="section-header">
-      <h2 className="section-title">Plans</h2>
-      <p className="section-subtitle">You're in early access. Here's what's coming.</p>
-    </div>
-
-    <div className="pricing-grid" style={{ margin: '0 auto' }}>
-      <div className="pricing-card pricing-card-free">
-        <div className="pricing-card-top">
-          <span className="pricing-plan-name">Beta</span>
-          <span className="pricing-plan-price">Free</span>
-          <span className="pricing-plan-desc">Full access while we're in beta. No card needed, no catch.</span>
-        </div>
-        <div className="pricing-features">
-          <div className="pricing-feature">
-            <i className="ti ti-check" />
-            <span>Unlimited post generation</span>
+        {/* Privacy Policy */}
+        {section === 'privacy' && (
+          <div className="section-page">
+            <div className="section-header"><h2 className="section-title">Privacy Policy</h2><p className="section-subtitle">Last updated: May 2026</p></div>
+            <div className="policy-content">
+              <div className="policy-block"><h3 className="policy-heading">What we collect</h3><p className="policy-text">We collect your email address, name, user type, and your answers to onboarding questions. We also store the posts you generate and your raw input dumps.</p></div>
+              <div className="policy-block"><h3 className="policy-heading">How we use it</h3><p className="policy-text">Your data is used solely to generate LinkedIn posts that sound like you. We do not sell your data to third parties.</p></div>
+              <div className="policy-block"><h3 className="policy-heading">Data storage</h3><p className="policy-text">Your account data is stored securely via Supabase. Your posts and onboarding answers are stored in your browser's local storage and on our servers.</p></div>
+              <div className="policy-block"><h3 className="policy-heading">Your rights</h3><p className="policy-text">You can delete your account and all associated data at any time by contacting us at dumppostquery@gmail.com.</p></div>
+              <div className="policy-block"><h3 className="policy-heading">Contact</h3><p className="policy-text">For any privacy related questions, reach us at dumppostquery@gmail.com.</p></div>
+            </div>
           </div>
-          <div className="pricing-feature">
-            <i className="ti ti-check" />
-            <span>Personal voice profiling</span>
-          </div>
-          <div className="pricing-feature">
-            <i className="ti ti-check" />
-            <span>Post history</span>
-          </div>
-          <div className="pricing-feature">
-            <i className="ti ti-check" />
-            <span>Early access to everything we ship</span>
-          </div>
-        </div>
-        <div className="pricing-card-footer">
-          <span className="pricing-current-badge">Your current plan</span>
-        </div>
-      </div>
+        )}
 
-      <div className="pricing-card pricing-card-pro">
-        <div className="pricing-card-top">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className="pricing-plan-name">Pro</span>
-            <span className="pro-badge">Coming soon</span>
+        {/* Usage Policy */}
+        {section === 'usage' && (
+          <div className="section-page">
+            <div className="section-header"><h2 className="section-title">Usage Policy</h2><p className="section-subtitle">Last updated: May 2026</p></div>
+            <div className="policy-content">
+              <div className="policy-block"><h3 className="policy-heading">Acceptable use</h3><p className="policy-text">DumpPost is designed to help you create authentic LinkedIn content from your own thoughts and experiences.</p></div>
+              <div className="policy-block"><h3 className="policy-heading">Prohibited use</h3><p className="policy-text">You may not use DumpPost to generate misleading, harmful, or plagiarized content. Accounts found violating these terms will be suspended.</p></div>
+              <div className="policy-block"><h3 className="policy-heading">AI generated content</h3><p className="policy-text">Posts generated by DumpPost are based on your input. You are responsible for reviewing content before publishing.</p></div>
+              <div className="policy-block"><h3 className="policy-heading">Beta terms</h3><p className="policy-text">DumpPost is currently in beta. Features may change and we may occasionally migrate data during this period.</p></div>
+              <div className="policy-block"><h3 className="policy-heading">Contact</h3><p className="policy-text">For usage related questions, reach us at dumppostquery@gmail.com.</p></div>
+            </div>
           </div>
-          <span className="pricing-plan-price">Launching soon</span>
-          <span className="pricing-plan-desc">For people serious about their LinkedIn presence. Everything in Beta, plus:</span>
-        </div>
-        <div className="pricing-features">
-          <div className="pricing-feature">
-            <i className="ti ti-check" />
-            <span>Everything in Beta</span>
-          </div>
-          <div className="pricing-feature pro-locked" onClick={() => alert('This feature is coming with Pro.')}>
-            <i className="ti ti-lock" />
-            <span>Tone & style controls</span>
-            <span className="pro-tag">Pro</span>
-          </div>
-          <div className="pricing-feature pro-locked" onClick={() => alert('This feature is coming with Pro.')}>
-            <i className="ti ti-lock" />
-            <span>Multiple voice profiles</span>
-            <span className="pro-tag">Pro</span>
-          </div>
-          <div className="pricing-feature pro-locked" onClick={() => alert('This feature is coming with Pro.')}>
-            <i className="ti ti-lock" />
-            <span>Post scheduling</span>
-            <span className="pro-tag">Pro</span>
-          </div>
-          <div className="pricing-feature pro-locked" onClick={() => alert('This feature is coming with Pro.')}>
-            <i className="ti ti-lock" />
-            <span>Priority support</span>
-            <span className="pro-tag">Pro</span>
-          </div>
-        </div>
-        <div className="pricing-card-footer">
-          <button className="settings-action-btn" onClick={() => window.location.href = 'mailto:dumppostquery@gmail.com?subject=DumpPost Pro Interest'}>
-  Get notified →
-</button>
-        </div>
-      </div>
-    </div>
+        )}
 
-    <p style={{ marginTop: '32px', fontSize: '0.78rem', color: 'var(--text-dim)', fontFamily: 'DM Sans, sans-serif', fontWeight: 300 }}>
-      Beta users get locked-in early pricing when Pro launches.
-    </p>
-  </div>
-)}
+        {/* Pricing */}
+        {section === 'pricing' && (
+          <div className="section-page">
+            <div className="section-header"><h2 className="section-title">Plans</h2><p className="section-subtitle">You're in early access. Here's what's coming.</p></div>
+            <div className="pricing-grid" style={{ margin: '0 auto' }}>
+              <div className="pricing-card pricing-card-free">
+                <div className="pricing-card-top">
+                  <span className="pricing-plan-name">Beta</span>
+                  <span className="pricing-plan-price">Free</span>
+                  <span className="pricing-plan-desc">Full access while we're in beta. No card needed, no catch.</span>
+                </div>
+                <div className="pricing-features">
+                  <div className="pricing-feature"><i className="ti ti-check" /><span>Unlimited post generation</span></div>
+                  <div className="pricing-feature"><i className="ti ti-check" /><span>Personal voice profiling</span></div>
+                  <div className="pricing-feature"><i className="ti ti-check" /><span>Post history</span></div>
+                  <div className="pricing-feature"><i className="ti ti-check" /><span>Early access to everything we ship</span></div>
+                </div>
+                <div className="pricing-card-footer"><span className="pricing-current-badge">Your current plan</span></div>
+              </div>
+              <div className="pricing-card pricing-card-pro">
+                <div className="pricing-card-top">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span className="pricing-plan-name">Pro</span>
+                    <span className="pro-badge">Coming soon</span>
+                  </div>
+                  <span className="pricing-plan-price">Launching soon</span>
+                  <span className="pricing-plan-desc">For people serious about their LinkedIn presence. Everything in Beta, plus:</span>
+                </div>
+                <div className="pricing-features">
+                  <div className="pricing-feature"><i className="ti ti-check" /><span>Everything in Beta</span></div>
+                  <div className="pricing-feature pro-locked" onClick={() => alert('This feature is coming with Pro.')}><i className="ti ti-lock" /><span>Tone & style controls</span><span className="pro-tag">Pro</span></div>
+                  <div className="pricing-feature pro-locked" onClick={() => alert('This feature is coming with Pro.')}><i className="ti ti-lock" /><span>Multiple voice profiles</span><span className="pro-tag">Pro</span></div>
+                  <div className="pricing-feature pro-locked" onClick={() => alert('This feature is coming with Pro.')}><i className="ti ti-lock" /><span>Post scheduling</span><span className="pro-tag">Pro</span></div>
+                  <div className="pricing-feature pro-locked" onClick={() => alert('This feature is coming with Pro.')}><i className="ti ti-lock" /><span>Priority support</span><span className="pro-tag">Pro</span></div>
+                </div>
+                <div className="pricing-card-footer">
+                  <button className="settings-action-btn" onClick={() => window.location.href = 'mailto:dumppostquery@gmail.com?subject=DumpPost Pro Interest'}>Get notified →</button>
+                </div>
+              </div>
+            </div>
+            <p style={{ marginTop: '32px', fontSize: '0.78rem', color: 'var(--text-dim)', fontFamily: 'DM Sans, sans-serif', fontWeight: 300 }}>Beta users get locked-in early pricing when Pro launches.</p>
+          </div>
+        )}
 
       </div>
     </main>
