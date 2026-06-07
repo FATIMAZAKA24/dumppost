@@ -1,5 +1,5 @@
 'use client';
-
+import { useVoiceInput } from '@/lib/useVoiceInput';
 import { supabase } from '@/lib/supabase';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -23,6 +23,9 @@ const studentQuestions = [
 ];
 
 export default function Questions() {
+  const { isRecording, transcribing, handleMicToggle } = useVoiceInput((text) => {
+  setInput(prev => prev ? prev + ' ' + text : text);
+});
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<string[]>([]);
   const [input, setInput] = useState('');
@@ -129,12 +132,17 @@ fetch('/api/extract-profile', {
       <div className="questions-wrap">
         <p className="wordmark" style={{ marginBottom: '32px' }}>DumpPost</p>
 
-        <div className="progress-bar-wrap">
-          <div className="progress-bar-track">
-            <div className="progress-bar-fill" style={{ width: `${progress}%` }} />
-          </div>
-          <span className="progress-label">{current + 1} of {questions.length}</span>
-        </div>
+        <div className="progress-stepper-wrap">
+  <div className="progress-stepper">
+    {questions.map((_, i) => (
+      <div
+        key={i}
+        className={`progress-step ${i < current ? 'done' : i === current ? 'active' : ''}`}
+      />
+    ))}
+  </div>
+  <span className="progress-label">{current + 1} of {questions.length}</span>
+</div>
 
         <div className={`question-block ${animating ? 'fade-out' : 'fade-in'}`}>
           {current === 0 && (
@@ -146,28 +154,37 @@ fetch('/api/extract-profile', {
         </div>
 
         <div className="q-input-wrap">
-          <textarea
-            className="q-textarea"
-            placeholder="Type your answer here..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleNext();
-              }
-            }}
-            rows={3}
-            autoFocus
-          />
-          <button
-            className="cta-btn"
-            onClick={handleNext}
-            disabled={input.trim().length === 0}
-          >
-            {current + 1 === questions.length ? 'Finish →' : 'Next →'}
-          </button>
-        </div>
+  <div className="q-textarea-wrap">
+    <textarea
+      className="q-textarea"
+      placeholder="Type your answer here..."
+      value={input}
+      onChange={(e) => setInput(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          handleNext();
+        }
+      }}
+      rows={3}
+      autoFocus
+    />
+    <button
+      className={`mic-btn-corner ${isRecording ? 'recording' : ''}`}
+      onClick={handleMicToggle}
+      disabled={transcribing}
+    >
+      <i className={`ti ${transcribing ? 'ti-loader' : isRecording ? 'ti-microphone-off' : 'ti-microphone'}`} />
+    </button>
+  </div>
+  <button
+    className="cta-btn"
+    onClick={handleNext}
+    disabled={input.trim().length === 0}
+  >
+    {current + 1 === questions.length ? 'Finish →' : 'Next →'}
+  </button>
+</div>
 
         <p className="q-hint">Press Enter to continue · Shift+Enter for new line</p>
       </div>

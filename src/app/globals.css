@@ -286,7 +286,7 @@ body {
   transform: translateY(20px);
 }
 
-.progress-bar-wrap {
+/* .progress-bar-wrap {
   width: 100%;
   display: flex;
   align-items: center;
@@ -304,7 +304,7 @@ body {
   height: 100%;
   background: var(--accent);
   transition: width 0.4s ease;
-}
+} */
 
 .progress-label {
   font-family: 'DM Sans', sans-serif;
@@ -839,11 +839,13 @@ body {
 .dump-panel-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 14px 32px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+  position: relative;
 }
+
 
 .dump-hint-text {
   font-family: 'DM Sans', sans-serif;
@@ -1857,4 +1859,150 @@ body {
   font-style: italic;
   margin-top: 6px;
   opacity: 0.7;
+}
+
+.dump-panel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 32px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.mic-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 10px 16px;
+  border-radius: 100px;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.78rem;
+  transition: all 0.2s ease;
+  position: absolute;
+  top: -44px;
+  right: 32px;
+}
+
+.mic-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mic-btn.recording {
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+  animation: micPulse 1s ease-in-out infinite;
+}
+
+.mic-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+
+@keyframes micPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.mic-btn-inline {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  transition: color 0.2s;
+}
+
+.mic-btn-inline:hover {
+  color: var(--accent);
+}
+
+.auth-input:-webkit-autofill,
+.auth-input:-webkit-autofill:hover,
+.auth-input:-webkit-autofill:focus,
+.auth-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+  -webkit-text-fill-color: var(--text) !important;
+  background-color: transparent !important;
+  background: transparent !important;
+  border-bottom: 1px solid var(--border) !important;
+  transition: background-color 5000s ease-in-out 0s;
+  caret-color: var(--text);
+}
+
+.q-textarea-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.mic-btn-corner {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+}
+
+.mic-btn-corner:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mic-btn-corner.recording {
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+  animation: micPulse 1s ease-in-out infinite;
+}
+
+.progress-stepper-wrap {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 48px;
+}
+
+.progress-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.progress-step {
+  height: 6px;
+  width: 6px;
+  border-radius: 100px;
+  background: var(--border);
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.progress-step.done {
+  background: var(--accent);
+  opacity: 0.5;
+}
+
+.progress-step.active {
+  background: var(--accent);
+  width: 24px;
 }

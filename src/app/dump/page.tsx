@@ -1,23 +1,36 @@
 'use client';
-
+import { useVoiceInput } from '@/lib/useVoiceInput';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
 type Section = 'workspace' | 'history' | 'profile' | 'settings' | 'tutorials' | 'privacy' | 'usage' | 'pricing';
 
+function RetryMicButton({ onTranscript }: { onTranscript: (text: string) => void }) {
+  const { isRecording, transcribing, handleMicToggle } = useVoiceInput(onTranscript);
+  return (
+    <button className="mic-btn-inline" onClick={handleMicToggle} disabled={transcribing}>
+      <i className={`ti ${transcribing ? 'ti-loader' : isRecording ? 'ti-microphone-off' : 'ti-microphone'}`} style={{ color: isRecording ? '#ff6b6b' : 'var(--text-dim)' }} />
+    </button>
+  );
+}
+
 export default function Dump() {
+  const { isRecording, transcribing, handleMicToggle } = useVoiceInput((text) => {
+    setInput(prev => prev ? prev + '\n' + text : text);
+  });
+  const [versionGroup, setVersionGroup] = useState<string | null>(null);
   const [previousOutput, setPreviousOutput] = useState('');
   const [selectedReasons, setSelectedReasons] = useState<string[]>([]);
-const [dbHistory, setDbHistory] = useState<Array<{
-  id: string; 
-  generated_output: string; 
-  raw_input: string; 
-  created_at: string; 
-  user_response?: string;
-  version_group?: string;
-  rejection_reason?: string;
-}>>([]);
+  const [dbHistory, setDbHistory] = useState<Array<{
+    id: string;
+    generated_output: string;
+    raw_input: string;
+    created_at: string;
+    user_response?: string;
+    version_group?: string;
+    rejection_reason?: string;
+  }>>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [showRetryPanel, setShowRetryPanel] = useState(false);
   const [selectedReason, setSelectedReason] = useState('');
@@ -82,10 +95,10 @@ const [dbHistory, setDbHistory] = useState<Array<{
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         const { data } = await supabase
-        .from('interactions')
-        .select('id, generated_output, raw_input, created_at, user_response, version_group, rejection_reason')
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false });
+          .from('interactions')
+          .select('id, generated_output, raw_input, created_at, user_response, version_group, rejection_reason')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false });
         setDbHistory(data || []);
       }
     } catch (e) {
@@ -94,7 +107,7 @@ const [dbHistory, setDbHistory] = useState<Array<{
     setHistoryLoading(false);
   };
 
-const handleGenerate = async () => {
+  const handleGenerate = async () => {
     if (input.trim().length === 0) return;
     setLoading(true);
     setOutput('');
@@ -102,16 +115,15 @@ const handleGenerate = async () => {
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const [versionGroup, setVersionGroup] = useState<string | null>(null);
       const res = await fetch('/api/generate', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    dump: input.trim(),
-    userId: session?.user?.id,
-    previousOutput: previousOutput || null,
-  }),
-});
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dump: input.trim(),
+          userId: session?.user?.id,
+          previousOutput: previousOutput || null,
+        }),
+      });
 
       const data = await res.json();
 
@@ -122,19 +134,19 @@ const handleGenerate = async () => {
 
         if (session?.user) {
           const newVersionGroup = previousOutput ? versionGroup : crypto.randomUUID();
-setVersionGroup(newVersionGroup);
+          setVersionGroup(newVersionGroup);
 
-const { data: interaction } = await supabase
-  .from('interactions')
-  .insert({
-    user_id: session.user.id,
-    raw_input: input.trim(),
-    generated_output: data.post,
-    llm_reasoning: data.reasoning || null,
-    version_group: newVersionGroup,
-  })
-  .select()
-  .single();
+          const { data: interaction } = await supabase
+            .from('interactions')
+            .insert({
+              user_id: session.user.id,
+              raw_input: input.trim(),
+              generated_output: data.post,
+              llm_reasoning: data.reasoning || null,
+              version_group: newVersionGroup,
+            })
+            .select()
+            .single();
           if (interaction) setCurrentInteractionId(interaction.id);
         }
       }
@@ -272,6 +284,16 @@ const { data: interaction } = await supabase
                   onChange={(e) => setInput(e.target.value)}
                 />
                 <div className="dump-panel-footer">
+                  <button
+                    className={`mic-btn ${isRecording ? 'recording' : ''}`}
+                    onClick={handleMicToggle}
+                    disabled={loading || transcribing}
+                    title={isRecording ? 'Stop recording' : 'Start voice input'}
+                  >
+                    <i className={`ti ${transcribing ? 'ti-loader' : isRecording ? 'ti-microphone-off' : 'ti-microphone'}`} />
+                    {isRecording && <span className="mic-label">Recording...</span>}
+                    {transcribing && <span className="mic-label">Transcribing...</span>}
+                  </button>
                   <button className="cta-btn" onClick={handleGenerate} disabled={input.trim().length === 0 || loading}>
                     {loading ? 'Writing...' : 'Generate →'}
                   </button>
@@ -369,30 +391,31 @@ const { data: interaction } = await supabase
                   <div className="retry-panel">
                     <p className="retry-label">What didn't work?</p>
                     <div className="retry-options">
-                     {['Too AI-sounding', 'Wrong tone for my audience', 'Missed the point entirely', 'Length was off', 'Felt too generic'].map((reason) => (
-  <button
-    key={reason}
-    className={`retry-option ${selectedReasons.includes(reason) ? 'selected' : ''}`}
-    onClick={() => {
-      setSelectedReasons(prev =>
-        prev.includes(reason)
-          ? prev.filter(r => r !== reason)
-          : [...prev, reason]
-      );
-    }}
-  >
-    <span className="retry-dot" />
-    {reason}
-  </button>
-))}
+                      {['Too AI-sounding', 'Wrong tone for my audience', 'Missed the point entirely', 'Length was off', 'Felt too generic'].map((reason) => (
+                        <button
+                          key={reason}
+                          className={`retry-option ${selectedReasons.includes(reason) ? 'selected' : ''}`}
+                          onClick={() => {
+                            setSelectedReasons(prev =>
+                              prev.includes(reason)
+                                ? prev.filter(r => r !== reason)
+                                : [...prev, reason]
+                            );
+                          }}
+                        >
+                          <span className="retry-dot" />
+                          {reason}
+                        </button>
+                      ))}
                       <div className="retry-custom-wrap">
                         <span className="retry-dot" />
                         <input
                           className="retry-custom-input"
                           placeholder="Something else? Describe it..."
                           value={customReason}
-                          onChange={(e) => { setCustomReason(e.target.value); if (e.target.value) setSelectedReason(''); }}
+                          onChange={(e) => { setCustomReason(e.target.value); if (e.target.value) setSelectedReasons([]); }}
                         />
+                        <RetryMicButton onTranscript={(text) => { setCustomReason(text); setSelectedReasons([]); }} />
                       </div>
                     </div>
                     <div className="retry-footer">
@@ -403,25 +426,25 @@ const { data: interaction } = await supabase
                         className="cta-btn"
                         disabled={selectedReasons.length === 0 && !customReason.trim()}
                         onClick={async () => {
-                        const reason = [
-                          ...selectedReasons,
-                          customReason.trim()
-                        ].filter(Boolean).join('; ');
-                        
-                        if (currentInteractionId) {
-                          await supabase.from('interactions').update({ 
-                            user_response: 'rejected', 
-                            rejection_reason: reason 
-                          }).eq('id', currentInteractionId);
-                        }
-                        setShowRetryPanel(false);
-                        setSelectedReasons([]);
-                        setCustomReason('');
-                        setCurrentInteractionId(null);
-                        setPreviousOutput(output);
-                        setOutput('');
-                        handleGenerate();
-}}
+                          const reason = [
+                            ...selectedReasons,
+                            customReason.trim()
+                          ].filter(Boolean).join('; ');
+
+                          if (currentInteractionId) {
+                            await supabase.from('interactions').update({
+                              user_response: 'rejected',
+                              rejection_reason: reason
+                            }).eq('id', currentInteractionId);
+                          }
+                          setShowRetryPanel(false);
+                          setSelectedReasons([]);
+                          setCustomReason('');
+                          setCurrentInteractionId(null);
+                          setPreviousOutput(output);
+                          setOutput('');
+                          handleGenerate();
+                        }}
                       >
                         Regenerate →
                       </button>
@@ -456,45 +479,44 @@ const { data: interaction } = await supabase
             ) : (
               <div className="history-list">
                 {(() => {
-  // Group by version_group
-  const groups = dbHistory.reduce((acc: Record<string, typeof dbHistory>, item) => {
-    const key = item.version_group || item.id;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(item);
-    return acc;
-  }, {});
+                  const groups = dbHistory.reduce((acc: Record<string, typeof dbHistory>, item) => {
+                    const key = item.version_group || item.id;
+                    if (!acc[key]) acc[key] = [];
+                    acc[key].push(item);
+                    return acc;
+                  }, {});
 
-  return Object.values(groups).map((versions) => {
-    const latest = versions[0];
-    const hasVersions = versions.length > 1;
-    return (
-      <div key={latest.id} className="history-item">
-        <div className="history-item-header">
-          <span className="history-date">
-            {new Date(latest.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-            {hasVersions && <span className="version-badge">{versions.length} versions</span>}
-          </span>
-          <button className="settings-action-btn" onClick={() => navigator.clipboard.writeText(latest.generated_output)}>Copy</button>
-        </div>
-        <p className="history-post">{latest.generated_output}</p>
-        {hasVersions && (
-          <details className="version-history">
-            <summary className="version-summary">See all {versions.length} versions</summary>
-            {versions.slice(1).map((v, i) => (
-              <div key={v.id} className="version-item">
-                <span className="version-label">Version {versions.length - i - 1}</span>
-                <p className="history-post" style={{ fontSize: '0.82rem', opacity: 0.7 }}>{v.generated_output}</p>
-                {v.rejection_reason && <p className="version-rejection">Rejected: {v.rejection_reason}</p>}
-              </div>
-            ))}
-          </details>
-        )}
-        <p className="history-dump-label">Original dump</p>
-        <p className="history-dump">{latest.raw_input}</p>
-      </div>
-    );
-  });
-})()}
+                  return Object.values(groups).map((versions) => {
+                    const latest = versions[0];
+                    const hasVersions = versions.length > 1;
+                    return (
+                      <div key={latest.id} className="history-item">
+                        <div className="history-item-header">
+                          <span className="history-date">
+                            {new Date(latest.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            {hasVersions && <span className="version-badge">{versions.length} versions</span>}
+                          </span>
+                          <button className="settings-action-btn" onClick={() => navigator.clipboard.writeText(latest.generated_output)}>Copy</button>
+                        </div>
+                        <p className="history-post">{latest.generated_output}</p>
+                        {hasVersions && (
+                          <details className="version-history">
+                            <summary className="version-summary">See all {versions.length} versions</summary>
+                            {versions.slice(1).map((v, i) => (
+                              <div key={v.id} className="version-item">
+                                <span className="version-label">Version {versions.length - i - 1}</span>
+                                <p className="history-post" style={{ fontSize: '0.82rem', opacity: 0.7 }}>{v.generated_output}</p>
+                                {v.rejection_reason && <p className="version-rejection">Rejected: {v.rejection_reason}</p>}
+                              </div>
+                            ))}
+                          </details>
+                        )}
+                        <p className="history-dump-label">Original dump</p>
+                        <p className="history-dump">{latest.raw_input}</p>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             )}
           </div>
@@ -585,36 +607,36 @@ const { data: interaction } = await supabase
                 <button className="settings-action-btn danger" onClick={handleLogout}>Log out</button>
               </div>
               <div className="settings-row">
-  <div className="settings-row-info">
-    <span className="settings-row-title">Delete account</span>
-    <span className="settings-row-desc">Permanently delete your account and all your data</span>
-  </div>
-<button className="settings-action-btn danger" onClick={async () => {
-  const confirmed = window.confirm('Are you sure? This will permanently delete your account and all your posts. This cannot be undone.');
-  if (!confirmed) return;
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      const res = await fetch('/api/delete-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: session.user.id }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        await supabase.auth.signOut();
-        localStorage.clear();
-        router.push('/');
-      } else {
-        alert('Something went wrong. Please try again.');
-      }
-    }
-  } catch (e) {
-    console.error('Failed to delete account:', e);
-    alert('Something went wrong. Please try again.');
-  }
-}}>Delete account</button>
-</div>
+                <div className="settings-row-info">
+                  <span className="settings-row-title">Delete account</span>
+                  <span className="settings-row-desc">Permanently delete your account and all your data</span>
+                </div>
+                <button className="settings-action-btn danger" onClick={async () => {
+                  const confirmed = window.confirm('Are you sure? This will permanently delete your account and all your posts. This cannot be undone.');
+                  if (!confirmed) return;
+                  try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session?.user) {
+                      const res = await fetch('/api/delete-account', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: session.user.id }),
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        await supabase.auth.signOut();
+                        localStorage.clear();
+                        router.push('/');
+                      } else {
+                        alert('Something went wrong. Please try again.');
+                      }
+                    }
+                  } catch (e) {
+                    console.error('Failed to delete account:', e);
+                    alert('Something went wrong. Please try again.');
+                  }
+                }}>Delete account</button>
+              </div>
             </div>
             <div className="section-divider" />
             <div className="settings-group">
@@ -705,7 +727,7 @@ const { data: interaction } = await supabase
                 </div>
                 <div className="pricing-features">
                   <div className="pricing-feature"><i className="ti ti-check" /><span>Everything in Beta</span></div>
-                  <div className="pricing-feature pro-locked" onClick={() => alert('This feature is coming with Pro.')}><i className="ti ti-lock" /><span>Tone & style controls</span><span className="pro-tag">Pro</span></div>
+                  <div className="pricing-feature pro-locked" onClick={() => alert('This feature is coming with Pro.')}><i className="ti ti-lock" /><span>Tone &amp; style controls</span><span className="pro-tag">Pro</span></div>
                   <div className="pricing-feature pro-locked" onClick={() => alert('This feature is coming with Pro.')}><i className="ti ti-lock" /><span>Multiple voice profiles</span><span className="pro-tag">Pro</span></div>
                   <div className="pricing-feature pro-locked" onClick={() => alert('This feature is coming with Pro.')}><i className="ti ti-lock" /><span>Post scheduling</span><span className="pro-tag">Pro</span></div>
                   <div className="pricing-feature pro-locked" onClick={() => alert('This feature is coming with Pro.')}><i className="ti ti-lock" /><span>Priority support</span><span className="pro-tag">Pro</span></div>

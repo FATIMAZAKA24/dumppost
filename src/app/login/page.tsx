@@ -99,6 +99,7 @@ const handleLogin = async () => {
             onChange={(e) => setEmail(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
             autoFocus
+            style={{ backgroundColor: 'transparent' }}
           />
           <div className="auth-password-wrap">
             <input
@@ -108,6 +109,7 @@ const handleLogin = async () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+              style={{ backgroundColor: 'transparent' }}
             />
             <button className="auth-eye-btn" onClick={() => setShowPassword(!showPassword)} tabIndex={-1}>
               <i className={`ti ${showPassword ? 'ti-eye-off' : 'ti-eye'}`} />
