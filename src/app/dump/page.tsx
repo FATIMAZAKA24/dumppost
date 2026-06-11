@@ -49,6 +49,10 @@ export default function Dump() {
   const [section, setSection] = useState<Section>('workspace');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [currentInteractionId, setCurrentInteractionId] = useState<string | null>(null);
+
+  // Mobile drawer state
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
   const router = useRouter();
 
   useEffect(() => {
@@ -83,6 +87,11 @@ export default function Dump() {
 
   useEffect(() => {
     if (section === 'history') loadHistory();
+  }, [section]);
+
+  // Close drawer on section change
+  useEffect(() => {
+    setDrawerOpen(false);
   }, [section]);
 
   if (!mounted) return null;
@@ -178,10 +187,292 @@ export default function Dump() {
     setSection('workspace');
   };
 
+  // ─── Mobile Drawer ────────────────────────────────────────────────────────
+  const MobileDrawer = () => (
+    <div className={`mobile-drawer ${drawerOpen ? 'open' : ''}`}>
+      <div className="mobile-drawer-top">
+        <span className="mobile-drawer-brand">DUMPPOST</span>
+        <button className="mobile-drawer-close" onClick={() => setDrawerOpen(false)}>
+          <i className="ti ti-x" />
+        </button>
+      </div>
+
+      <div className="mobile-drawer-nav">
+        <button className="mobile-drawer-new-post" onClick={() => { handleNewPost(); }}>
+          <i className="ti ti-pencil-plus" />
+          New post
+        </button>
+
+        <button
+          className={`mobile-drawer-nav-item ${section === 'workspace' ? 'active' : ''}`}
+          onClick={() => setSection('workspace')}
+        >
+          <i className="ti ti-writing" />
+          Workspace
+        </button>
+        <button
+          className={`mobile-drawer-nav-item ${section === 'history' ? 'active' : ''}`}
+          onClick={() => setSection('history')}
+        >
+          <i className="ti ti-history" />
+          History
+        </button>
+      </div>
+
+      <div className="mobile-drawer-bottom">
+        <button className="mobile-drawer-bottom-item" onClick={() => setSection('pricing')}>
+          <i className="ti ti-star" />
+          Upgrade plan
+        </button>
+        <button className="mobile-drawer-bottom-item" onClick={() => setSection('tutorials')}>
+          <i className="ti ti-book" />
+          Tutorials
+        </button>
+        <button className="mobile-drawer-bottom-item" onClick={() => setSection('privacy')}>
+          <i className="ti ti-shield" />
+          Privacy policy
+        </button>
+        <button className="mobile-drawer-bottom-item" onClick={() => setSection('usage')}>
+          <i className="ti ti-file-text" />
+          Usage policy
+        </button>
+
+        <div className="mobile-drawer-profile" onClick={() => setShowUserMenu(!showUserMenu)}>
+          <div className="mobile-drawer-profile-left">
+            <div className="sidebar-avatar">
+              {name ? name.charAt(0).toUpperCase() : 'U'}
+            </div>
+            <div>
+              <div className="mobile-drawer-profile-name">{name || 'User'}</div>
+              <div className="mobile-drawer-profile-plan">Free plan</div>
+            </div>
+          </div>
+          <i className={`ti ${showUserMenu ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }} />
+        </div>
+
+        {showUserMenu && (
+          <div className="mobile-drawer-user-menu">
+            <button className="user-menu-item" onClick={(e) => { e.stopPropagation(); setSection('profile'); setShowUserMenu(false); }}>
+              <i className="ti ti-user" /><span>Profile</span>
+            </button>
+            <button className="user-menu-item" onClick={(e) => { e.stopPropagation(); setSection('settings'); setShowUserMenu(false); }}>
+              <i className="ti ti-settings" /><span>Settings</span>
+            </button>
+            <button className="user-menu-item danger" onClick={(e) => { e.stopPropagation(); handleLogout(); }}>
+              <i className="ti ti-logout" /><span>Log out</span>
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // ─── Mobile Topbar ────────────────────────────────────────────────────────
+  const MobileTopbar = () => (
+    <div className="mobile-topbar">
+      <button className="mobile-topbar-toggle" onClick={() => setDrawerOpen(true)}>
+        <i className="ti ti-layout-sidebar" />
+      </button>
+      <div className="mobile-topbar-right">
+        <span className="mobile-topbar-greeting">
+          Hi, <strong>{name || 'there'}</strong>
+        </span>
+        <button className="theme-toggle" style={{ position: 'static', opacity: 0.5 }} onClick={() => setDark(!dark)}>
+          {dark ? '🌙' : '☀️'}
+        </button>
+      </div>
+    </div>
+  );
+
+  // ─── Mobile Workspace ─────────────────────────────────────────────────────
+  const MobileWorkspace = () => {
+    const hasOutput = output && !loading;
+    const isState2 = hasOutput && !showRetryPanel && !isEditing;
+
+    return (
+      <div className="mobile-workspace">
+        {/* State 1 — writing */}
+        {!isState2 && (
+          <>
+            <div className="mobile-dump-header">
+              <span className="dump-label">Dump</span>
+              <span className="dump-meta">{wordCount} {wordCount === 1 ? 'word' : 'words'}</span>
+            </div>
+
+            <div className="mobile-dumpbox-wrap">
+              {!loading && !showRetryPanel && !isEditing && (
+                <textarea
+                  className="mobile-dump-textarea"
+                  placeholder={`What's on your mind, ${name || 'there'}?\n\nBullet points, half sentences, voice notes — anything.`}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                />
+              )}
+
+              {loading && (
+                <div className="dump-loading-wrap">
+                  <div className="loading-dots">
+                    <span className="dump-loading-dot" />
+                    <span className="dump-loading-dot" />
+                    <span className="dump-loading-dot" />
+                  </div>
+                  <p className="dump-loading-label">Writing your post...</p>
+                </div>
+              )}
+
+              {showRetryPanel && (
+                <div className="retry-panel" style={{ padding: '16px' }}>
+                  <p className="retry-label">What didn't work?</p>
+                  <div className="retry-options">
+                    {['Too AI-sounding', 'Wrong tone for my audience', 'Missed the point entirely', 'Length was off', 'Felt too generic'].map((reason) => (
+                      <button
+                        key={reason}
+                        className={`retry-option ${selectedReasons.includes(reason) ? 'selected' : ''}`}
+                        onClick={() => {
+                          setSelectedReasons(prev =>
+                            prev.includes(reason) ? prev.filter(r => r !== reason) : [...prev, reason]
+                          );
+                        }}
+                      >
+                        <span className="retry-dot" />
+                        {reason}
+                      </button>
+                    ))}
+                    <div className="retry-custom-wrap">
+                      <span className="retry-dot" />
+                      <input
+                        className="retry-custom-input"
+                        placeholder="Something else? Describe it..."
+                        value={customReason}
+                        onChange={(e) => { setCustomReason(e.target.value); if (e.target.value) setSelectedReasons([]); }}
+                      />
+                      <RetryMicButton onTranscript={(text) => { setCustomReason(text); setSelectedReasons([]); }} />
+                    </div>
+                  </div>
+                  <div className="retry-footer">
+                    <button className="feedback-btn" onClick={() => { setShowRetryPanel(false); setSelectedReason(''); setCustomReason(''); }}>
+                      Cancel
+                    </button>
+                    <button
+                      className="cta-btn"
+                      disabled={selectedReasons.length === 0 && !customReason.trim()}
+                      onClick={async () => {
+                        const reason = [...selectedReasons, customReason.trim()].filter(Boolean).join('; ');
+                        if (currentInteractionId) {
+                          await supabase.from('interactions').update({ user_response: 'rejected', rejection_reason: reason }).eq('id', currentInteractionId);
+                        }
+                        setShowRetryPanel(false);
+                        setSelectedReasons([]);
+                        setCustomReason('');
+                        setCurrentInteractionId(null);
+                        setPreviousOutput(output);
+                        setOutput('');
+                        handleGenerate();
+                      }}
+                    >
+                      Regenerate →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {isEditing && (
+                <textarea
+                  className="mobile-dump-textarea"
+                  value={editedOutput}
+                  onChange={(e) => setEditedOutput(e.target.value)}
+                  autoFocus
+                />
+              )}
+
+              {/* Mic button pinned inside textarea bottom-right */}
+              {!loading && !showRetryPanel && (
+                <button
+                  className={`mobile-mic-btn ${isRecording ? 'recording' : ''}`}
+                  onClick={handleMicToggle}
+                  disabled={transcribing}
+                >
+                  <i className={`ti ${transcribing ? 'ti-loader' : isRecording ? 'ti-microphone-off' : 'ti-microphone'}`} />
+                </button>
+              )}
+            </div>
+
+            <button
+              className="mobile-generate-btn"
+              onClick={isEditing ? async () => {
+                navigator.clipboard.writeText(editedOutput);
+                setOutput(editedOutput);
+                setIsEditing(false);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+                if (currentInteractionId) {
+                  await supabase.from('interactions').update({ user_response: 'edited', edits_made: editedOutput }).eq('id', currentInteractionId);
+                }
+              } : handleGenerate}
+              disabled={loading || (!isEditing && input.trim().length === 0)}
+            >
+              {loading ? 'Writing...' : isEditing ? 'Copy edited →' : 'Generate →'}
+              {!loading && <i className="ti ti-arrow-right" style={{ fontSize: '0.75rem' }} />}
+            </button>
+          </>
+        )}
+
+        {/* State 2 — post generated */}
+        {isState2 && (
+          <>
+            {/* Collapsed dump strip */}
+            <div className="mobile-dump-mini">
+              <div className="mobile-dump-mini-label">
+                <span>DUMP · {wordCount} {wordCount === 1 ? 'word' : 'words'}</span>
+                <button className="mobile-dump-mini-edit" onClick={() => { setOutput(''); }}>EDIT</button>
+              </div>
+              <div className="mobile-dump-mini-text" title={input}>
+                {input.length > 80 ? input.slice(0, 80) + '…' : input}
+              </div>
+            </div>
+
+            {/* Post area */}
+            <div className="mobile-post-area">
+              <div className="mobile-post-header">
+                <span className="dump-label">Your post</span>
+                <div className="mobile-post-actions">
+                  <button className="mobile-act-btn" onClick={async () => {
+                    handleCopy();
+                    if (currentInteractionId) {
+                      await supabase.from('interactions').update({ user_response: 'accepted' }).eq('id', currentInteractionId);
+                    }
+                  }}>
+                    <i className="ti ti-copy" />
+                    {copied ? 'Copied' : 'Copy'}
+                  </button>
+                  <button className="mobile-act-btn" onClick={() => { setIsEditing(true); setEditedOutput(output); setOutput(''); }}>
+                    <i className="ti ti-adjustments" />
+                    Refine
+                  </button>
+                  <button className="mobile-act-btn" onClick={() => { setShowRetryPanel(true); setSelectedReason(''); setCustomReason(''); setOutput(''); }}>
+                    <i className="ti ti-refresh" />
+                    Retry
+                  </button>
+                </div>
+              </div>
+
+              <div className="mobile-postbox">
+                <div className="mobile-post-text">{output}</div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
     <main data-theme={dark ? 'dark' : 'light'} className="app-layout">
 
-      {/* Sidebar */}
+      {/* ── Mobile drawer overlay ── */}
+      <MobileDrawer />
+
+      {/* ── Desktop Sidebar (hidden on mobile via CSS) ── */}
       <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-top">
           <div className="sidebar-logo">
@@ -256,204 +547,199 @@ export default function Dump() {
         </div>
       </aside>
 
-      {/* Main content */}
+      {/* ── Main content ── */}
       <div className="app-main">
+
+        {/* Mobile topbar — only visible on mobile */}
+        <MobileTopbar />
 
         {/* Workspace */}
         {section === 'workspace' && (
-          <div className="dump-page" style={{ animation: 'none' }}>
-            <header className="dump-header">
-              <span className="dump-greeting" style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                {name ? `Hi, ${name}` : 'Workspace'}
-              </span>
-              <button className="theme-toggle" style={{ position: 'static', opacity: 0.4 }} onClick={() => setDark(!dark)}>
-                {dark ? '🌙' : '☀️'}
-              </button>
-            </header>
+          <>
+            {/* Desktop workspace */}
+            <div className="dump-page desktop-only" style={{ animation: 'none' }}>
+              <header className="dump-header">
+                <span className="dump-greeting" style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  {name ? `Hi, ${name}` : 'Workspace'}
+                </span>
+                <button className="theme-toggle" style={{ position: 'static', opacity: 0.4 }} onClick={() => setDark(!dark)}>
+                  {dark ? '🌙' : '☀️'}
+                </button>
+              </header>
 
-            <div className="dump-workspace">
-              <div className="dump-panel dump-panel-left">
-                <div className="dump-panel-header">
-                  <span className="dump-label">Dump</span>
-                  <span className="dump-meta">{wordCount} {wordCount === 1 ? 'word' : 'words'}</span>
-                </div>
-                <textarea
-                  className="dump-input"
-                  placeholder={`What's on your mind, ${name || 'there'}?\n\nJust dump it — bullet points, half sentences, voice note transcripts, whatever's in your head. The messier the better. We'll clean it up.`}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                />
-                <div className="dump-panel-footer">
-                  <button
-                    className={`mic-btn ${isRecording ? 'recording' : ''}`}
-                    onClick={handleMicToggle}
-                    disabled={loading || transcribing}
-                    title={isRecording ? 'Stop recording' : 'Start voice input'}
-                  >
-                    <i className={`ti ${transcribing ? 'ti-loader' : isRecording ? 'ti-microphone-off' : 'ti-microphone'}`} />
-                    {isRecording && <span className="mic-label">Recording...</span>}
-                    {transcribing && <span className="mic-label">Transcribing...</span>}
-                  </button>
-                  <button className="cta-btn" onClick={handleGenerate} disabled={input.trim().length === 0 || loading}>
-                    {loading ? 'Writing...' : 'Generate →'}
-                  </button>
-                </div>
-              </div>
-
-              <div className="dump-panel dump-panel-right">
-                <div className="dump-panel-header">
-                  <span className="dump-label">Your post</span>
-                  {output && !showRetryPanel && !isEditing && (
-                    <div className="dump-feedback">
-                      <button className="feedback-btn" onClick={async () => {
-                        handleCopy();
-                        if (currentInteractionId) {
-                          await supabase.from('interactions').update({ user_response: 'accepted' }).eq('id', currentInteractionId);
-                        }
-                      }}>{copied ? '✓ Copied' : 'Copy'}</button>
-                      <button className="feedback-btn" onClick={() => {
-                        setIsEditing(true);
-                        setEditedOutput(output);
-                      }}>✎ Refine</button>
-                      <button className="feedback-btn reject" onClick={() => {
-                        setShowRetryPanel(true);
-                        setSelectedReason('');
-                        setCustomReason('');
-                      }}>↺ Retry</button>
-                    </div>
-                  )}
-                  {isEditing && (
-                    <div className="dump-feedback">
-                      <button className="feedback-btn" onClick={async () => {
-                        navigator.clipboard.writeText(editedOutput);
-                        setOutput(editedOutput);
-                        setIsEditing(false);
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 2000);
-                        if (currentInteractionId) {
-                          await supabase.from('interactions').update({ user_response: 'edited', edits_made: editedOutput }).eq('id', currentInteractionId);
-                        }
-                      }}>✓ Copy edited</button>
-                      <button className="feedback-btn" onClick={() => { setOutput(editedOutput); setIsEditing(false); }}>Save</button>
-                      <button className="feedback-btn reject" onClick={() => { setIsEditing(false); setEditedOutput(''); }}>Cancel</button>
-                    </div>
-                  )}
-                </div>
-
-                {!output && !loading && (
-                  <div className="dump-empty-ghost">
-                    <div className="ghost-label">Your post will appear here</div>
-                    <div className="ghost-line ghost-line-full" />
-                    <div className="ghost-line ghost-line-full" />
-                    <div className="ghost-line ghost-line-3q" />
-                    <div className="ghost-spacer" />
-                    <div className="ghost-line ghost-line-full" />
-                    <div className="ghost-line ghost-line-full" />
-                    <div className="ghost-line ghost-line-half" />
-                    <div className="ghost-spacer" />
-                    <div className="ghost-line ghost-line-full" />
-                    <div className="ghost-line ghost-line-3q" />
-                    <div className="ghost-spacer" />
-                    <div className="ghost-line ghost-line-quarter" />
-                    <div className="ghost-line ghost-line-quarter" />
-                    <div className="ghost-line ghost-line-quarter" />
+              <div className="dump-workspace">
+                <div className="dump-panel dump-panel-left">
+                  <div className="dump-panel-header">
+                    <span className="dump-label">Dump</span>
+                    <span className="dump-meta">{wordCount} {wordCount === 1 ? 'word' : 'words'}</span>
                   </div>
-                )}
-
-                {loading && (
-                  <div className="dump-loading-wrap">
-                    <div className="loading-dots">
-                      <span className="dump-loading-dot" />
-                      <span className="dump-loading-dot" />
-                      <span className="dump-loading-dot" />
-                    </div>
-                    <p className="dump-loading-label">Writing your post...</p>
-                  </div>
-                )}
-
-                {output && !loading && !showRetryPanel && !isEditing && (
-                  <div className="dump-output-wrap">
-                    <div className="dump-output">{output}</div>
-                  </div>
-                )}
-
-                {output && !loading && isEditing && (
                   <textarea
                     className="dump-input"
-                    value={editedOutput}
-                    onChange={(e) => setEditedOutput(e.target.value)}
-                    style={{ padding: '24px 32px', flex: 1 }}
-                    autoFocus
+                    placeholder={`What's on your mind, ${name || 'there'}?\n\nJust dump it — bullet points, half sentences, voice note transcripts, whatever's in your head. The messier the better. We'll clean it up.`}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
                   />
-                )}
+                  <div className="dump-panel-footer">
+                    <button
+                      className={`mic-btn ${isRecording ? 'recording' : ''}`}
+                      onClick={handleMicToggle}
+                      disabled={loading || transcribing}
+                      title={isRecording ? 'Stop recording' : 'Start voice input'}
+                    >
+                      <i className={`ti ${transcribing ? 'ti-loader' : isRecording ? 'ti-microphone-off' : 'ti-microphone'}`} />
+                      {isRecording && <span className="mic-label">Recording...</span>}
+                      {transcribing && <span className="mic-label">Transcribing...</span>}
+                    </button>
+                    <button className="cta-btn" onClick={handleGenerate} disabled={input.trim().length === 0 || loading}>
+                      {loading ? 'Writing...' : 'Generate →'}
+                    </button>
+                  </div>
+                </div>
 
-                {showRetryPanel && (
-                  <div className="retry-panel">
-                    <p className="retry-label">What didn't work?</p>
-                    <div className="retry-options">
-                      {['Too AI-sounding', 'Wrong tone for my audience', 'Missed the point entirely', 'Length was off', 'Felt too generic'].map((reason) => (
+                <div className="dump-panel dump-panel-right">
+                  <div className="dump-panel-header">
+                    <span className="dump-label">Your post</span>
+                    {output && !showRetryPanel && !isEditing && (
+                      <div className="dump-feedback">
+                        <button className="feedback-btn" onClick={async () => {
+                          handleCopy();
+                          if (currentInteractionId) {
+                            await supabase.from('interactions').update({ user_response: 'accepted' }).eq('id', currentInteractionId);
+                          }
+                        }}>{copied ? '✓ Copied' : 'Copy'}</button>
+                        <button className="feedback-btn" onClick={() => { setIsEditing(true); setEditedOutput(output); }}>✎ Refine</button>
+                        <button className="feedback-btn reject" onClick={() => { setShowRetryPanel(true); setSelectedReason(''); setCustomReason(''); }}>↺ Retry</button>
+                      </div>
+                    )}
+                    {isEditing && (
+                      <div className="dump-feedback">
+                        <button className="feedback-btn" onClick={async () => {
+                          navigator.clipboard.writeText(editedOutput);
+                          setOutput(editedOutput);
+                          setIsEditing(false);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                          if (currentInteractionId) {
+                            await supabase.from('interactions').update({ user_response: 'edited', edits_made: editedOutput }).eq('id', currentInteractionId);
+                          }
+                        }}>✓ Copy edited</button>
+                        <button className="feedback-btn" onClick={() => { setOutput(editedOutput); setIsEditing(false); }}>Save</button>
+                        <button className="feedback-btn reject" onClick={() => { setIsEditing(false); setEditedOutput(''); }}>Cancel</button>
+                      </div>
+                    )}
+                  </div>
+
+                  {!output && !loading && (
+                    <div className="dump-empty-ghost">
+                      <div className="ghost-label">Your post will appear here</div>
+                      <div className="ghost-line ghost-line-full" />
+                      <div className="ghost-line ghost-line-full" />
+                      <div className="ghost-line ghost-line-3q" />
+                      <div className="ghost-spacer" />
+                      <div className="ghost-line ghost-line-full" />
+                      <div className="ghost-line ghost-line-full" />
+                      <div className="ghost-line ghost-line-half" />
+                      <div className="ghost-spacer" />
+                      <div className="ghost-line ghost-line-full" />
+                      <div className="ghost-line ghost-line-3q" />
+                      <div className="ghost-spacer" />
+                      <div className="ghost-line ghost-line-quarter" />
+                      <div className="ghost-line ghost-line-quarter" />
+                      <div className="ghost-line ghost-line-quarter" />
+                    </div>
+                  )}
+
+                  {loading && (
+                    <div className="dump-loading-wrap">
+                      <div className="loading-dots">
+                        <span className="dump-loading-dot" />
+                        <span className="dump-loading-dot" />
+                        <span className="dump-loading-dot" />
+                      </div>
+                      <p className="dump-loading-label">Writing your post...</p>
+                    </div>
+                  )}
+
+                  {output && !loading && !showRetryPanel && !isEditing && (
+                    <div className="dump-output-wrap">
+                      <div className="dump-output">{output}</div>
+                    </div>
+                  )}
+
+                  {output && !loading && isEditing && (
+                    <textarea
+                      className="dump-input"
+                      value={editedOutput}
+                      onChange={(e) => setEditedOutput(e.target.value)}
+                      style={{ padding: '24px 32px', flex: 1 }}
+                      autoFocus
+                    />
+                  )}
+
+                  {showRetryPanel && (
+                    <div className="retry-panel">
+                      <p className="retry-label">What didn't work?</p>
+                      <div className="retry-options">
+                        {['Too AI-sounding', 'Wrong tone for my audience', 'Missed the point entirely', 'Length was off', 'Felt too generic'].map((reason) => (
+                          <button
+                            key={reason}
+                            className={`retry-option ${selectedReasons.includes(reason) ? 'selected' : ''}`}
+                            onClick={() => {
+                              setSelectedReasons(prev =>
+                                prev.includes(reason) ? prev.filter(r => r !== reason) : [...prev, reason]
+                              );
+                            }}
+                          >
+                            <span className="retry-dot" />
+                            {reason}
+                          </button>
+                        ))}
+                        <div className="retry-custom-wrap">
+                          <span className="retry-dot" />
+                          <input
+                            className="retry-custom-input"
+                            placeholder="Something else? Describe it..."
+                            value={customReason}
+                            onChange={(e) => { setCustomReason(e.target.value); if (e.target.value) setSelectedReasons([]); }}
+                          />
+                          <RetryMicButton onTranscript={(text) => { setCustomReason(text); setSelectedReasons([]); }} />
+                        </div>
+                      </div>
+                      <div className="retry-footer">
+                        <button className="feedback-btn" onClick={() => { setShowRetryPanel(false); setSelectedReason(''); setCustomReason(''); }}>
+                          Cancel
+                        </button>
                         <button
-                          key={reason}
-                          className={`retry-option ${selectedReasons.includes(reason) ? 'selected' : ''}`}
-                          onClick={() => {
-                            setSelectedReasons(prev =>
-                              prev.includes(reason)
-                                ? prev.filter(r => r !== reason)
-                                : [...prev, reason]
-                            );
+                          className="cta-btn"
+                          disabled={selectedReasons.length === 0 && !customReason.trim()}
+                          onClick={async () => {
+                            const reason = [...selectedReasons, customReason.trim()].filter(Boolean).join('; ');
+                            if (currentInteractionId) {
+                              await supabase.from('interactions').update({ user_response: 'rejected', rejection_reason: reason }).eq('id', currentInteractionId);
+                            }
+                            setShowRetryPanel(false);
+                            setSelectedReasons([]);
+                            setCustomReason('');
+                            setCurrentInteractionId(null);
+                            setPreviousOutput(output);
+                            setOutput('');
+                            handleGenerate();
                           }}
                         >
-                          <span className="retry-dot" />
-                          {reason}
+                          Regenerate →
                         </button>
-                      ))}
-                      <div className="retry-custom-wrap">
-                        <span className="retry-dot" />
-                        <input
-                          className="retry-custom-input"
-                          placeholder="Something else? Describe it..."
-                          value={customReason}
-                          onChange={(e) => { setCustomReason(e.target.value); if (e.target.value) setSelectedReasons([]); }}
-                        />
-                        <RetryMicButton onTranscript={(text) => { setCustomReason(text); setSelectedReasons([]); }} />
                       </div>
                     </div>
-                    <div className="retry-footer">
-                      <button className="feedback-btn" onClick={() => { setShowRetryPanel(false); setSelectedReason(''); setCustomReason(''); }}>
-                        Cancel
-                      </button>
-                      <button
-                        className="cta-btn"
-                        disabled={selectedReasons.length === 0 && !customReason.trim()}
-                        onClick={async () => {
-                          const reason = [
-                            ...selectedReasons,
-                            customReason.trim()
-                          ].filter(Boolean).join('; ');
-
-                          if (currentInteractionId) {
-                            await supabase.from('interactions').update({
-                              user_response: 'rejected',
-                              rejection_reason: reason
-                            }).eq('id', currentInteractionId);
-                          }
-                          setShowRetryPanel(false);
-                          setSelectedReasons([]);
-                          setCustomReason('');
-                          setCurrentInteractionId(null);
-                          setPreviousOutput(output);
-                          setOutput('');
-                          handleGenerate();
-                        }}
-                      >
-                        Regenerate →
-                      </button>
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+
+            {/* Mobile workspace */}
+            <div className="mobile-only">
+              <MobileWorkspace />
+            </div>
+          </>
         )}
 
         {/* History */}
