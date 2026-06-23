@@ -149,10 +149,10 @@ export default function Dump() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    localStorage.clear();
-    router.push('/');
-  };
+  await supabase.auth.signOut();
+  localStorage.clear();
+  router.push('/');
+};
 
   const handleNewPost = () => {
     setInput('');

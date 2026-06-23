@@ -19,6 +19,11 @@ export default function Signup() {
     const saved = localStorage.getItem('dp-theme') || 'dark';
     setDark(saved === 'dark');
     document.documentElement.setAttribute('data-theme', saved);
+
+    // Add this:
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) router.push('/dump');
+    });
   }, []);
 
   useEffect(() => {
