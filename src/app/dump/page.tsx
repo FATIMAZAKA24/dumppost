@@ -663,6 +663,7 @@ export default function Dump() {
               <div className="policy-block"><h3 className="policy-heading">How we use it</h3><p className="policy-text">Your data is used solely to generate LinkedIn posts. We do not sell your data to third parties.</p></div>
               <div className="policy-block"><h3 className="policy-heading">Data storage</h3><p className="policy-text">Account data is stored securely via Supabase. Posts and onboarding answers are stored in local storage and on our servers.</p></div>
               <div className="policy-block"><h3 className="policy-heading">Your rights</h3><p className="policy-text">You can delete your account and all data at any time. Contact dumppostquery@gmail.com.</p></div>
+              <div className="policy-block"><h3 className="policy-heading">Contact</h3><p className="policy-text">dumppostquery@gmail.com</p></div>
             </div>
           </div>
         )}
@@ -675,9 +676,7 @@ export default function Dump() {
               <div className="policy-block"><h3 className="policy-heading">Acceptable use</h3><p className="policy-text">DumpPost is designed to help you create authentic LinkedIn content from your own thoughts.</p></div>
               <div className="policy-block"><h3 className="policy-heading">Prohibited use</h3><p className="policy-text">Do not use DumpPost to generate misleading, harmful, or plagiarized content.</p></div>
               <div className="policy-block"><h3 className="policy-heading">AI generated content</h3><p className="policy-text">Posts are based on your input. You are responsible for reviewing content before publishing.</p></div>
-              <div className="policy-block"><h3 className="policy-heading">Beta terms</h3><p className="policy-text">DumpPost is in beta. Features may change and data may be migrated during this period.</p></div>
-              <div className="policy-block"><h3 className="policy-heading">Contact</h3><p className="policy-text">dumppostquery@gmail.com</p></div>
-            </div>
+              <div className="policy-block"><h3 className="policy-heading">Beta terms</h3><p className="policy-text">DumpPost is in beta. Features may change and data may be migrated during this period.</p></div>            </div>
           </div>
         )}
 
