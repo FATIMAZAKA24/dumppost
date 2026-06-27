@@ -663,7 +663,6 @@ export default function Dump() {
               <div className="policy-block"><h3 className="policy-heading">How we use it</h3><p className="policy-text">Your data is used solely to generate LinkedIn posts. We do not sell your data to third parties.</p></div>
               <div className="policy-block"><h3 className="policy-heading">Data storage</h3><p className="policy-text">Account data is stored securely via Supabase. Posts and onboarding answers are stored in local storage and on our servers.</p></div>
               <div className="policy-block"><h3 className="policy-heading">Your rights</h3><p className="policy-text">You can delete your account and all data at any time. Contact dumppostquery@gmail.com.</p></div>
-              <div className="policy-block"><h3 className="policy-heading">Contact</h3><p className="policy-text">dumppostquery@gmail.com</p></div>
             </div>
           </div>
         )}
