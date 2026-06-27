@@ -79,6 +79,9 @@ export default function Questions() {
         if (session?.user) {
           const savedName = localStorage.getItem('dp-name') || '';
           const savedType = localStorage.getItem('dp-type') || 'employed';
+            
+            // ADD THIS LINE:
+            localStorage.setItem('dp-user-id', session.user.id);
 
           await supabase.from('users').upsert({
             id: session.user.id,
