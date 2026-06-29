@@ -110,7 +110,6 @@ LAYER 4 — DUMPPOST RULES
 - Structure: hook → insight or story → takeaway → optional question
 - Add 3–5 relevant hashtags at the end
 - Output ONLY the LinkedIn post — no preamble, no explanation
-- Use line breaks between thoughts. Short standalone sentences can sit alone. Let the post breathe.
 
 VOICE MATCHING — THIS IS YOUR MOST IMPORTANT JOB:
 - Study how the user actually writes in their onboarding answers. 
