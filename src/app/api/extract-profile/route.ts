@@ -55,9 +55,6 @@ IMPORTANT INFERENCE NOTE:
 Onboarding answers are conversational by nature — people naturally 
 write longer when answering questions directly. Do not mistake 
 conversational answer length for the user's actual writing style.
-When inferring sentence_rhythm: default to "short-punchy" or "mixed" 
-unless the user's answers are clearly and deliberately crafted in 
-long-form prose. Err on the side of shorter.
 
 Return this exact JSON structure (fill in what you can infer, use null for anything unclear):
 {
@@ -75,7 +72,7 @@ Return this exact JSON structure (fill in what you can infer, use null for anyth
   "posting_goal": "what they want to achieve on LinkedIn",
   "desired_perception": "how they want to be perceived",
   "passion_areas": "what genuinely excites them",
-  "sentence_rhythm": "default to short-punchy or mixed unless clearly long-form — do not infer long-flowing from conversational onboarding answers",
+  "sentence_rhythm": "short-punchy/long-flowing/mixed",  
   "structure_preference": "how they naturally structure thoughts",
   "real_vocabulary": "key words and phrases they actually use",
   "explicit_preferences": "any specific things they mentioned wanting",
