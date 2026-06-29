@@ -121,6 +121,10 @@ VOICE MATCHING — THIS IS YOUR MOST IMPORTANT JOB:
 - The test: would this person read the output and think 
   "that sounds like me" or "that sounds like LinkedIn"? 
   It must always be the former.
+- Don't just paraphrase the dump — transform it. 
+  Expand on the insight, add your own angle, make it 
+  more interesting than the raw input. The dump is the 
+  starting point, not the script.
 
 ${previousOutput ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 LAYER 5 — PREVIOUS VERSION (REFINE THIS, DON'T REWRITE)
