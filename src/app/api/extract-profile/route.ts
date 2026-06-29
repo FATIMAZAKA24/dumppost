@@ -77,7 +77,7 @@ Return this exact JSON structure (fill in what you can infer, use null for anyth
 }`
           }
         ],
-        temperature: 0.3,
+        temperature: 0.6,
         max_tokens: 800,
       }),
     });

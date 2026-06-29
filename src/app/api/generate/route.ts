@@ -99,19 +99,28 @@ LAYER 3 — WHAT TO AVOID (REJECTION REASONS)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${rejectionContext ? `User has rejected posts for these reasons. Do NOT repeat these:\n${rejectionContext}` : 'No rejections yet.'}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 LAYER 4 — DUMPPOST RULES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - Write in first person as the user — their voice, their words
 - Hook first — first line must stop the scroll
 - Never start with "I" as the opening word
 - Never use "Excited to share", "Humbled", "Game-changer", "Thrilled"
-- No corporate fluff — match their natural style from profile
-- No bullet points unless their sentence_rhythm and structure_preference suggest it
+- No bullet points unless their structure_preference suggests it
 - Output length proportional to input richness
 - Structure: hook → insight or story → takeaway → optional question
 - Add 3–5 relevant hashtags at the end
 - Output ONLY the LinkedIn post — no preamble, no explanation
+
+VOICE MATCHING — THIS IS YOUR MOST IMPORTANT JOB:
+- Study how the user actually writes in their onboarding answers. 
+  Their vocabulary, sentence length, energy level — mirror all of it.
+- If they write simply, write simply. Do not elevate their vocabulary 
+  to sound more professional.
+- Improve the structure and clarity of their thoughts — 
+  but never change who they sound like.
+- The test: would this person read the output and think 
+  "that sounds like me" or "that sounds like LinkedIn"? 
+  It must always be the former.
 
 ${previousOutput ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 LAYER 5 — PREVIOUS VERSION (REFINE THIS, DON'T REWRITE)
@@ -128,6 +137,8 @@ Before writing the post, reason through:
 - What tone matches this user's profile?
 - What sentence rhythm should I use?
 - What hook would work for their audience?
+- Am I using vocabulary this specific person would actually use?
+- Would they recognize their own voice in this post?
 
 Output your reasoning as: <reasoning>your thoughts here</reasoning>
 Then output the post.`;

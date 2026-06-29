@@ -38,10 +38,10 @@ export default function Home() {
       <div className="content">
         <p className="wordmark">DumpPost</p>
         <h1 className="headline">
-          Dump your thoughts.<br />
-          <span className="accent">Post your story.</span>
+          Your ideas, Your voice.<br />
+          <span className="accent">LinkedIn-Ready.</span>
         </h1>
-        <p className="tagline">Your raw ideas → your voice → LinkedIn, effortlessly.</p>
+        <p className="tagline">Your thoughts → your voice → LinkedIn post. In seconds.</p>
         <div className="cta-group">
           <button className="cta-btn" onClick={() => router.push('/signup')}>Get started →</button>
           <span className="cta-sub">Free during beta · No card required</span>
