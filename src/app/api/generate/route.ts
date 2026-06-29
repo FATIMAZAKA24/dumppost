@@ -140,6 +140,7 @@ Before writing the post, reason through:
 - Am I using vocabulary this specific person would actually use?
 - Would they recognize their own voice in this post?
 
+
 Output your reasoning as: <reasoning>your thoughts here</reasoning>
 Then output the post.`;
 
@@ -155,7 +156,7 @@ Then output the post.`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `My raw thoughts:\n\n${dump}` },
         ],
-        temperature: 0.75,
+        temperature: 0.6,
         max_tokens: 900,
       }),
     });
