@@ -160,7 +160,7 @@ Then output the post.`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `My raw thoughts:\n\n${dump}` },
         ],
-        temperature: 0.6,
+        temperature: 0.7,
         max_tokens: 900,
       }),
     });
