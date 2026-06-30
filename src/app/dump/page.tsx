@@ -21,6 +21,7 @@ export default function Dump() {
   });
   const [versionGroup, setVersionGroup] = useState<string | null>(null);
   const [previousOutput, setPreviousOutput] = useState('');
+  const [lastRejectionReason, setLastRejectionReason] = useState('');
   const [selectedReasons, setSelectedReasons] = useState<string[]>([]);
   const [dbHistory, setDbHistory] = useState<Array<{
     id: string;
@@ -109,7 +110,10 @@ export default function Dump() {
     setHistoryLoading(false);
   };
 
-  const handleGenerate = async () => {
+  // Now accepts an optional rejectionReason so the specific feedback
+  // that triggered THIS regeneration reaches the API directly,
+  // instead of relying only on the pooled last-5 rejections in Supabase.
+  const handleGenerate = async (rejectionReason?: string) => {
     if (input.trim().length === 0) return;
     setLoading(true);
     setOutput('');
@@ -119,7 +123,12 @@ export default function Dump() {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dump: input.trim(), userId: session?.user?.id, previousOutput: previousOutput || null }),
+        body: JSON.stringify({
+          dump: input.trim(),
+          userId: session?.user?.id,
+          previousOutput: previousOutput || null,
+          lastRejectionReason: rejectionReason || null,
+        }),
       });
       const data = await res.json();
       if (data.error) {
@@ -161,6 +170,25 @@ export default function Dump() {
     setShowRetryPanel(false);
     setIsEditing(false);
     setSection('workspace');
+  };
+
+  // Shared handler for both desktop and mobile Regenerate buttons.
+  // Builds the reason string, saves it to Supabase, AND passes it
+  // directly into handleGenerate so this specific regeneration
+  // gets the exact feedback, not just the pooled history.
+  const handleRegenerate = async () => {
+    const reason = [...selectedReasons, customReason.trim()].filter(Boolean).join('; ');
+    if (currentInteractionId) {
+      await supabase.from('interactions').update({ user_response: 'rejected', rejection_reason: reason }).eq('id', currentInteractionId);
+    }
+    setLastRejectionReason(reason);
+    setShowRetryPanel(false);
+    setSelectedReasons([]);
+    setCustomReason('');
+    setCurrentInteractionId(null);
+    setPreviousOutput(output);
+    setOutput('');
+    handleGenerate(reason);
   };
 
   // State 2 condition
@@ -320,7 +348,7 @@ export default function Dump() {
                       {isRecording && <span className="mic-label">Recording...</span>}
                       {transcribing && <span className="mic-label">Transcribing...</span>}
                     </button>
-                    <button className="cta-btn" onClick={handleGenerate} disabled={input.trim().length === 0 || loading}>
+                    <button className="cta-btn" onClick={() => handleGenerate()} disabled={input.trim().length === 0 || loading}>
                       {loading ? 'Writing...' : 'Generate →'}
                     </button>
                   </div>
@@ -384,12 +412,7 @@ export default function Dump() {
                       </div>
                       <div className="retry-footer">
                         <button className="feedback-btn" onClick={() => { setShowRetryPanel(false); setSelectedReason(''); setCustomReason(''); }}>Cancel</button>
-                        <button className="cta-btn" disabled={selectedReasons.length === 0 && !customReason.trim()} onClick={async () => {
-                          const reason = [...selectedReasons, customReason.trim()].filter(Boolean).join('; ');
-                          if (currentInteractionId) await supabase.from('interactions').update({ user_response: 'rejected', rejection_reason: reason }).eq('id', currentInteractionId);
-                          setShowRetryPanel(false); setSelectedReasons([]); setCustomReason(''); setCurrentInteractionId(null); setPreviousOutput(output); setOutput('');
-                          handleGenerate();
-                        }}>Regenerate →</button>
+                        <button className="cta-btn" disabled={selectedReasons.length === 0 && !customReason.trim()} onClick={handleRegenerate}>Regenerate →</button>
                       </div>
                     </div>
                   )}
@@ -462,12 +485,7 @@ export default function Dump() {
                   {showRetryPanel ? (
                     <div style={{ display: 'flex', gap: '8px', padding: '10px 16px 16px' }}>
                       <button className="feedback-btn" style={{ flex: 1 }} onClick={() => { setShowRetryPanel(false); setSelectedReason(''); setCustomReason(''); }}>Cancel</button>
-                      <button className="mobile-generate-btn" style={{ flex: 2, margin: 0 }} disabled={selectedReasons.length === 0 && !customReason.trim()} onClick={async () => {
-                        const reason = [...selectedReasons, customReason.trim()].filter(Boolean).join('; ');
-                        if (currentInteractionId) await supabase.from('interactions').update({ user_response: 'rejected', rejection_reason: reason }).eq('id', currentInteractionId);
-                        setShowRetryPanel(false); setSelectedReasons([]); setCustomReason(''); setCurrentInteractionId(null); setPreviousOutput(output); setOutput('');
-                        handleGenerate();
-                      }}>Regenerate →</button>
+                      <button className="mobile-generate-btn" style={{ flex: 2, margin: 0 }} disabled={selectedReasons.length === 0 && !customReason.trim()} onClick={handleRegenerate}>Regenerate →</button>
                     </div>
                   ) : isEditing ? (
                     <div style={{ display: 'flex', gap: '8px', padding: '10px 16px 16px' }}>
@@ -482,7 +500,7 @@ export default function Dump() {
                       }}>Copy edited →</button>
                     </div>
                   ) : (
-                    <button className="mobile-generate-btn" onClick={handleGenerate} disabled={loading || input.trim().length === 0}>
+                    <button className="mobile-generate-btn" onClick={() => handleGenerate()} disabled={loading || input.trim().length === 0}>
                       {loading ? 'Writing...' : 'Generate →'}
                     </button>
                   )}
