@@ -178,6 +178,7 @@ Then output the post immediately after the closing tag. Never write "Reasoning:"
         ],
         temperature: 0.7,
         max_tokens: 900,
+        reasoning_effort: 'none',
       }),
     });
 
