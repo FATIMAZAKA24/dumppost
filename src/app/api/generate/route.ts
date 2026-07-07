@@ -191,7 +191,10 @@ Then output the post immediately after the closing tag. Never write "Reasoning:"
     // Extract reasoning and post separately
     const reasoningMatch = fullResponse.match(/<reasoning>([\s\S]*?)<\/reasoning>/);
     const reasoning = reasoningMatch ? reasoningMatch[1].trim() : null;
-    const post = fullResponse.replace(/<reasoning>[\s\S]*?<\/reasoning>/g, '').trim();
+    const post = fullResponse
+    .replace(/<reasoning>[\s\S]*?<\/reasoning>/g, '')
+    .replace(/<think>[\s\S]*?<\/think>/g, '')
+    .trim();
 
     return NextResponse.json({ post, reasoning });
 
