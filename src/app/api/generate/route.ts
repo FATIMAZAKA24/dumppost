@@ -171,7 +171,7 @@ Then output the post immediately after the closing tag. Never write "Reasoning:"
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'qwen/qwen3.6-27b',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `My raw thoughts:\n\n${dump}` },
