@@ -22,15 +22,24 @@ const studentQuestions = [
   "Anything specific you want DumpPost to keep in mind? Or we can just learn as we go.",
 ];
 
+const jobseekerQuestions = [
+  "What kind of role or field are you targeting?",
+  "What's the most relevant thing you've worked on or built — even if it was a project, internship, or side thing?",
+  "What's been the hardest part of your job search so far?",
+  "Who do you want reading your posts — recruiters, hiring managers, people in your field?",
+  "What do you want people to think about you when they read your posts?",
+  "Anything specific you want DumpPost to keep in mind? Or we can just learn as we go.",
+];
+
 export default function Questions() {
   const { isRecording, transcribing, handleMicToggle } = useVoiceInput((text) => {
-  setInput(prev => prev ? prev + ' ' + text : text);
-});
+    setInput(prev => prev ? prev + ' ' + text : text);
+  });
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<string[]>([]);
   const [input, setInput] = useState('');
   const [name, setName] = useState('');
-  const [userType, setUserType] = useState<'employed' | 'student'>('employed');
+  const [userType, setUserType] = useState<'employed' | 'student' | 'jobseeker'>('employed');
   const [dark, setDark] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [animating, setAnimating] = useState(false);
@@ -42,7 +51,7 @@ export default function Questions() {
     setDark(saved === 'dark');
     document.documentElement.setAttribute('data-theme', saved);
     setName(localStorage.getItem('dp-name') || '');
-    const type = localStorage.getItem('dp-type') as 'employed' | 'student';
+    const type = localStorage.getItem('dp-type') as 'employed' | 'student' | 'jobseeker';
     setUserType(type || 'employed');
 
     const autoResize = (e: Event) => {
@@ -63,9 +72,12 @@ export default function Questions() {
 
   if (!mounted) return null;
 
-  const questions = userType === 'student' ? studentQuestions : employedQuestions;
+  const questions =
+    userType === 'student' ? studentQuestions :
+    userType === 'jobseeker' ? jobseekerQuestions :
+    employedQuestions;
 
- const handleNext = async () => {
+  const handleNext = async () => {
     if (input.trim().length === 0) return;
     const newAnswers = [...answers, input.trim()];
     setAnswers(newAnswers);
@@ -79,9 +91,8 @@ export default function Questions() {
         if (session?.user) {
           const savedName = localStorage.getItem('dp-name') || '';
           const savedType = localStorage.getItem('dp-type') || 'employed';
-            
-            // ADD THIS LINE:
-            localStorage.setItem('dp-user-id', session.user.id);
+
+          localStorage.setItem('dp-user-id', session.user.id);
 
           await supabase.from('users').upsert({
             id: session.user.id,
@@ -89,16 +100,17 @@ export default function Questions() {
             name: savedName,
             user_type: savedType,
           });
-// Extract and save voice signals in background
-fetch('/api/extract-profile', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    userId: session.user.id,
-    answers: newAnswers,
-    userType: savedType,
-  }),
-}).catch(console.error);
+
+          fetch('/api/extract-profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: session.user.id,
+              answers: newAnswers,
+              userType: savedType,
+            }),
+          }).catch(console.error);
+
           await supabase.from('user_profiles').upsert({
             user_id: session.user.id,
             onboarding_answers: newAnswers,
@@ -108,8 +120,8 @@ fetch('/api/extract-profile', {
         console.error('Failed to save profile:', e);
       }
 
+      setInput('');
       setTimeout(() => {
-        setInput('');
         setAnimating(false);
         router.push('/loading');
       }, 300);
@@ -121,8 +133,6 @@ fetch('/api/extract-profile', {
       }, 300);
     }
   };
-
-  const progress = ((current) / questions.length) * 100;
 
   return (
     <main data-theme={dark ? 'dark' : 'light'} className="landing">
@@ -136,58 +146,56 @@ fetch('/api/extract-profile', {
         <p className="wordmark" style={{ marginBottom: '32px' }}>DumpPost</p>
 
         <div className="progress-stepper-wrap">
-  <div className="progress-stepper">
-    {questions.map((_, i) => (
-      <div
-        key={i}
-        className={`progress-step ${i < current ? 'done' : i === current ? 'active' : ''}`}
-      />
-    ))}
-  </div>
-  <span className="progress-label">{current + 1} of {questions.length}</span>
-</div>
+          <div className="progress-stepper">
+            {questions.map((_, i) => (
+              <div
+                key={i}
+                className={`progress-step ${i < current ? 'done' : i === current ? 'active' : ''}`}
+              />
+            ))}
+          </div>
+          <span className="progress-label">{current + 1} of {questions.length}</span>
+        </div>
 
         <div className={`question-block ${animating ? 'fade-out' : 'fade-in'}`}>
           {current === 0 && (
-            <p className="q-greeting">
-              {/* {name ? `Hey ${name}, just a few quick questions.` : 'Just a few quick questions.'} */}
-            </p>)
-            }
+            <p className="q-greeting"></p>
+          )}
           <h2 className="q-text">{questions[current]}</h2>
         </div>
 
         <div className="q-input-wrap">
-  <div className="q-textarea-wrap">
-    <textarea
-      className="q-textarea"
-      placeholder="Type your answer here..."
-      value={input}
-      onChange={(e) => setInput(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          handleNext();
-        }
-      }}
-      rows={3}
-      autoFocus
-    />
-    <button
-      className={`mic-btn-corner ${isRecording ? 'recording' : ''}`}
-      onClick={handleMicToggle}
-      disabled={transcribing}
-    >
-      <i className={`ti ${transcribing ? 'ti-loader' : isRecording ? 'ti-microphone-off' : 'ti-microphone'}`} />
-    </button>
-  </div>
-  <button
-    className="cta-btn"
-    onClick={handleNext}
-    disabled={input.trim().length === 0}
-  >
-    {current + 1 === questions.length ? 'Finish →' : 'Next →'}
-  </button>
-</div>
+          <div className="q-textarea-wrap">
+            <textarea
+              className="q-textarea"
+              placeholder="Type your answer here..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleNext();
+                }
+              }}
+              rows={3}
+              autoFocus
+            />
+            <button
+              className={`mic-btn-corner ${isRecording ? 'recording' : ''}`}
+              onClick={handleMicToggle}
+              disabled={transcribing}
+            >
+              <i className={`ti ${transcribing ? 'ti-loader' : isRecording ? 'ti-microphone-off' : 'ti-microphone'}`} />
+            </button>
+          </div>
+          <button
+            className="cta-btn"
+            onClick={handleNext}
+            disabled={input.trim().length === 0}
+          >
+            {current + 1 === questions.length ? 'Finish →' : 'Next →'}
+          </button>
+        </div>
 
         <p className="q-hint">Press Enter to continue · Shift+Enter for new line</p>
       </div>
