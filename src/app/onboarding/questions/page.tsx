@@ -121,6 +121,7 @@ export default function Questions() {
       }
 
       setInput('');
+      setCurrent(questions.length); // pushes current out of range — hides question block
       setTimeout(() => {
         setAnimating(false);
         router.push('/loading');
