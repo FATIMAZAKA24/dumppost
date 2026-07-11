@@ -44,6 +44,8 @@ export default function Questions() {
   const [mounted, setMounted] = useState(false);
   const [animating, setAnimating] = useState(false);
   const router = useRouter();
+  const [redirecting, setRedirecting] = useState(false);
+
 
   useEffect(() => {
     setMounted(true);
@@ -85,6 +87,7 @@ export default function Questions() {
 
     if (current + 1 >= questions.length) {
       localStorage.setItem('dp-answers', JSON.stringify(newAnswers));
+      setRedirecting(true); // ADD THIS — hides everything instantly
 
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -134,6 +137,9 @@ export default function Questions() {
       }, 300);
     }
   };
+
+if (!mounted) return null;
+if (redirecting) return null;  // ADD THIS LINE
 
   return (
     <main data-theme={dark ? 'dark' : 'light'} className="landing">
