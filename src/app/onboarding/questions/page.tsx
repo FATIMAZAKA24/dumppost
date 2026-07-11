@@ -123,20 +123,17 @@ export default function Questions() {
         console.error('Failed to save profile:', e);
       }
 
-      setInput('');
-      setCurrent(questions.length); // pushes current out of range — hides question block
-      setTimeout(() => {
-        setAnimating(false);
-        router.push('/loading');
-      }, 300);
-    } else {
-      setTimeout(() => {
-        setInput('');
-        setAnimating(false);
-        setCurrent(current + 1);
-      }, 300);
-    }
-  };
+     setInput('');
+      setCurrent(questions.length);
+      router.push('/loading'); // remove setTimeout, redirect immediately
+
+      } else {
+        setTimeout(() => {
+          setInput('');
+          setAnimating(false);
+          setCurrent(current + 1);
+        }, 300);
+      }
 
 if (!mounted) return null;
 if (redirecting) return null;  // ADD THIS LINE
