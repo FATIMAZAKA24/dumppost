@@ -123,17 +123,16 @@ export default function Questions() {
         console.error('Failed to save profile:', e);
       }
 
-     setInput('');
-      setCurrent(questions.length);
-      router.push('/loading'); // remove setTimeout, redirect immediately
-
-      } else {
-        setTimeout(() => {
-          setInput('');
-          setAnimating(false);
-          setCurrent(current + 1);
-        }, 300);
-      }
+      setInput('');
+        router.push('/loading');
+    } else {
+      setTimeout(() => {
+        setInput('');
+        setAnimating(false);
+        setCurrent(current + 1);
+      }, 300);
+    }
+  };
 
 if (!mounted) return null;
 if (redirecting) return null;  // ADD THIS LINE
