@@ -83,12 +83,12 @@ export default function Home() {
           align-items: center;
           text-align: center;
           border-bottom: 0.5px solid var(--border);
-          animation: lp-rise 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+          animation: lp-rise 1.6s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
 
         @keyframes lp-rise {
-          from { opacity: 0; transform: translateY(28px); }
-          to   { opacity: 1; transform: translateY(0); }
+        from { opacity: 0; transform: translateY(40px); }
+        to   { opacity: 1; transform: translateY(0); }
         }
 
         .lp-wordmark {
@@ -154,11 +154,11 @@ export default function Home() {
 
         /* ── SCROLL REVEAL ── */
         .lp-reveal {
-          opacity: 0;
-          transform: translateY(40px);
-          transition: opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1),
-                      transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
-        }
+        opacity: 0;
+        transform: translateY(60px);
+        transition: opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1),
+                    transform 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+      }
         .lp-reveal.visible {
           opacity: 1;
           transform: translateY(0);
@@ -205,7 +205,15 @@ export default function Home() {
           border-radius: 10px;
           padding: 24px;
           transition: border-color 0.3s;
+
+          opacity: 0;
+          transform: translateY(20px);
+          transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+          transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
         }
+
+        .lp-reveal.visible .lp-demo-card:nth-child(1) { opacity:1; transform:translateY(0); transition-delay:0.15s; }
+        .lp-reveal.visible .lp-demo-card:nth-child(2) { opacity:1; transform:translateY(0); transition-delay:0.3s; }
         .lp-demo-card:hover { border-color: var(--accent); }
 
         .lp-card-label {
@@ -249,12 +257,11 @@ export default function Home() {
         }
 
         .lp-step {
-          text-align: center;
-          opacity: 0;
-          transform: translateY(20px);
-          transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
-                      transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
-        }
+        opacity: 0;
+        transform: translateY(40px);
+        transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1),
+                    transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+      }
         .lp-reveal.visible .lp-step:nth-child(1) { opacity:1; transform:translateY(0); transition-delay:0.1s; }
         .lp-reveal.visible .lp-step:nth-child(2) { opacity:1; transform:translateY(0); transition-delay:0.25s; }
         .lp-reveal.visible .lp-step:nth-child(3) { opacity:1; transform:translateY(0); transition-delay:0.4s; }
