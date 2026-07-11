@@ -8,23 +8,20 @@ const supabaseAdmin = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const { dump, userId, previousOutput, lastRejectionReason } = await req.json();
+    const { dump, userId, previousOutput } = await req.json();
 
-    // Fetch extracted profile signals from DB (maybeSingle so it doesn't throw on null)
     const { data: profile } = await supabaseAdmin
       .from('user_profiles')
       .select('*')
       .eq('user_id', userId)
-      .maybeSingle();
+      .single();
 
-    // Fetch user basic info
     const { data: user } = await supabaseAdmin
       .from('users')
       .select('name, user_type')
       .eq('id', userId)
-      .maybeSingle();
+      .single();
 
-    // Fetch last 5 rejection reasons (pooled, general "what to avoid" signal)
     const { data: rejections } = await supabaseAdmin
       .from('interactions')
       .select('rejection_reason')
@@ -34,7 +31,6 @@ export async function POST(req: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(5);
 
-    // Fetch last 5 edited posts
     const { data: edits } = await supabaseAdmin
       .from('interactions')
       .select('generated_output, edits_made')
@@ -45,21 +41,12 @@ export async function POST(req: NextRequest) {
       .limit(5);
 
     const rejectionContext = rejections?.length
-      ? rejections.map((r: { rejection_reason: string }) => `- ${r.rejection_reason}`).join('\n')
+      ? rejections.map((r: {rejection_reason: string}) => `- ${r.rejection_reason}`).join('\n')
       : null;
 
-    // Smart-truncate at sentence boundary instead of mid-sentence slicing
-    const smartTruncate = (text: string | null, maxLen: number) => {
-      if (!text) return '';
-      if (text.length <= maxLen) return text;
-      const slice = text.slice(0, maxLen);
-      const lastPeriod = slice.lastIndexOf('.');
-      return lastPeriod > maxLen * 0.5 ? slice.slice(0, lastPeriod + 1) : slice + '...';
-    };
-
     const editContext = edits?.length
-      ? edits.map((e: { generated_output: string; edits_made: string }, i: number) =>
-          `Edit ${i + 1}:\nOriginal: ${smartTruncate(e.generated_output, 350)}\nEdited to: ${smartTruncate(e.edits_made, 350)}`
+      ? edits.map((e: {generated_output: string; edits_made: string}, i: number) =>
+          `Edit ${i + 1}:\nOriginal: ${e.generated_output?.slice(0, 200)}...\nEdited to: ${e.edits_made?.slice(0, 200)}...`
         ).join('\n\n')
       : null;
 
@@ -84,7 +71,19 @@ Structure preference: ${profile.structure_preference || 'unknown'}
 Real vocabulary: ${profile.real_vocabulary || 'unknown'}
 Explicit preferences: ${profile.explicit_preferences || 'none'}
 AI tool relationship: ${profile.ai_tool_relationship || 'unknown'}
-Personality type: ${profile.personality_type || 'unknown'}` : 'No profile available yet — rely on the raw dump itself for voice signals.';
+Personality type: ${profile.personality_type || 'unknown'}` : 'No profile available.';
+
+    const userTypeLabel =
+      user?.user_type === 'student' ? 'Student' :
+      user?.user_type === 'jobseeker' ? 'Job Seeker (actively looking for opportunities)' :
+      'Working Professional';
+
+    const userTypeGuidance =
+      user?.user_type === 'jobseeker' ?
+      `This user is actively job seeking. Their posts should subtly position them as a strong candidate — highlight skills, projects, problem-solving ability, and growth mindset. Avoid desperation or "open to work" clichés. Make them sound accomplished and intentional, not needy.` :
+      user?.user_type === 'student' ?
+      `This user is a student building their professional presence early. Their posts should feel authentic, curious, and growth-oriented — not trying to sound more senior than they are.` :
+      `This user is a working professional. Their posts should reflect real work experience, domain expertise, and genuine insight from the field.`;
 
     const systemPrompt = `You are DumpPost — an AI that converts raw, unfiltered thoughts into authentic, personalised LinkedIn posts.
 
@@ -94,7 +93,9 @@ Your core job: make the post sound exactly like THIS person, not a generic Linke
 LAYER 1 — USER VOICE PROFILE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Name: ${user?.name || 'Unknown'}
-Type: ${user?.user_type === 'student' ? 'Student' : 'Working Professional'}
+Type: ${userTypeLabel}
+
+${userTypeGuidance}
 
 ${profileContext}
 
@@ -104,65 +105,30 @@ LAYER 2 — VOICE CORRECTIONS (EDITS MADE BY USER)
 ${editContext ? `These are posts the user edited — the difference between original and edited version is your strongest voice signal. Learn from what they changed:\n\n${editContext}` : 'No edits yet.'}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-LAYER 3 — WHAT TO AVOID (REJECTION REASONS) — THESE ARE DIRECT INSTRUCTIONS
+LAYER 3 — WHAT TO AVOID (REJECTION REASONS)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${rejectionContext ? `The user has rejected posts for these reasons. Treat each one as a DIRECT INSTRUCTION, not a soft preference. These override every default rule in LAYER 4 — including formatting defaults like whether to use bullet points, length, tone, or structure. If a rejection reason explicitly asks for something (e.g. "use bullets", "make it shorter", "don't mention X"), you MUST comply with it in this generation:\n${rejectionContext}` : 'No rejections yet.'}
+${rejectionContext ? `User has rejected posts for these reasons. Do NOT repeat these:\n${rejectionContext}` : 'No rejections yet.'}
 
-${lastRejectionReason ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-MOST IMPORTANT — THE REASON THE IMMEDIATELY PRIOR VERSION WAS REJECTED
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-This is the specific feedback on the LAYER 5 previous version below. Fix exactly this, before anything else:
-"${lastRejectionReason}"` : ''}
-
 LAYER 4 — DUMPPOST RULES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - Write in first person as the user — their voice, their words
 - Hook first — first line must stop the scroll
 - Never start with "I" as the opening word
 - Never use "Excited to share", "Humbled", "Game-changer", "Thrilled"
-- No bullet points unless their structure_preference suggests it, OR the user has explicitly asked for bullets in a rejection reason (see LAYER 3 — that always wins)
+- No corporate fluff — match their natural style from profile
+- No bullet points unless their sentence_rhythm and structure_preference suggest it
 - Output length proportional to input richness
 - Structure: hook → insight or story → takeaway → optional question
-- - ALWAYS end the post with 3–5 relevant hashtags on a new line. No exceptions.
+- ALWAYS end with 3–5 relevant hashtags on a new line. No exceptions.
 - Output ONLY the LinkedIn post — no preamble, no explanation
 
-VOICE MATCHING — THIS IS YOUR MOST IMPORTANT JOB:
-- Study how the user actually writes in their onboarding answers. 
-  Their vocabulary, sentence length, energy level — mirror all of it.
-- If they write simply, write simply. Do not elevate their vocabulary 
-  to sound more professional.
-- Improve the structure and clarity of their thoughts — 
-  but never change who they sound like.
-- The test: would this person read the output and think 
-  "that sounds like me" or "that sounds like LinkedIn"? 
-  It must always be the former.
-- Don't just paraphrase the dump — transform it. 
-  Expand on the insight, add your own angle, make it 
-  more interesting than the raw input. The dump is the 
-  starting point, not the script.
-
 ${previousOutput ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-LAYER 5 — PREVIOUS VERSION (REFINE THIS, DON'T REWRITE FROM SCRATCH)
+LAYER 5 — PREVIOUS VERSION (REFINE THIS, DON'T REWRITE)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-The user rejected this version. Keep what worked, fix exactly what didn't based on the rejection reason above:
+The user rejected this version. Keep what worked, fix what didn't based on their rejection reason:
 
-${previousOutput}` : ''}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 1 — INTERNAL REASONING (do this silently before writing)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Before writing the post, reason through:
-- What is the core insight in this dump?
-- What tone matches this user's profile?
-- What sentence rhythm should I use?
-- What hook would work for their audience?
-- Am I using vocabulary this specific person would actually use?
-- Would they recognize their own voice in this post?
-- If there was a rejection reason, am I actually fixing that specific thing?
-
-CRITICAL: You MUST wrap your reasoning in XML tags exactly like this:
-<reasoning>your thoughts here</reasoning>
-Then output the post immediately after the closing tag. Never write "Reasoning:" as plain text outside the tags.`;
+${previousOutput}` : ''}`;
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -171,12 +137,12 @@ Then output the post immediately after the closing tag. Never write "Reasoning:"
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'qwen/qwen3.6-27b',
+        model: 'qwen/qwen3-32b',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `My raw thoughts:\n\n${dump}` },
         ],
-        temperature: 0.7,
+        temperature: 0.75,
         max_tokens: 900,
         reasoning_effort: 'none',
       }),
@@ -189,15 +155,12 @@ Then output the post immediately after the closing tag. Never write "Reasoning:"
       return NextResponse.json({ error: 'No post generated' }, { status: 500 });
     }
 
-    // Extract reasoning and post separately
-    const reasoningMatch = fullResponse.match(/<reasoning>([\s\S]*?)<\/reasoning>/);
-    const reasoning = reasoningMatch ? reasoningMatch[1].trim() : null;
     const post = fullResponse
-    .replace(/<reasoning>[\s\S]*?<\/reasoning>/g, '')
-    .replace(/<think>[\s\S]*?<\/think>/g, '')
-    .trim();
+      .replace(/<reasoning>[\s\S]*?<\/reasoning>/g, '')
+      .replace(/<think>[\s\S]*?<\/think>/g, '')
+      .trim();
 
-    return NextResponse.json({ post, reasoning });
+    return NextResponse.json({ post, reasoning: null });
 
   } catch (err) {
     console.error('Generate error:', err);
