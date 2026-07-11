@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function UserType() {
-  const [selected, setSelected] = useState<'employed' | 'student' | null>(null);
+  const [selected, setSelected] = useState<'employed' | 'student' | 'jobseeker' | null>(null);
   const [name, setName] = useState('');
   const [dark, setDark] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -36,11 +36,7 @@ export default function UserType() {
 
   return (
     <main data-theme={dark ? 'dark' : 'light'} className="landing">
-      <button
-        className="theme-toggle"
-        onClick={() => setDark(!dark)}
-        aria-label="Toggle theme"
-      >
+      <button className="theme-toggle" onClick={() => setDark(!dark)} aria-label="Toggle theme">
         {dark ? '🌙' : '☀️'}
       </button>
 
@@ -50,10 +46,10 @@ export default function UserType() {
         <p className="wordmark">DumpPost</p>
 
         <h1 className="headline" style={{ marginBottom: '12px' }}>
-        <span style={{ fontSize: 'clamp(1.2rem, 2.5vw, 1.8rem)', color: 'var(--text-muted)', display: 'block', marginBottom: '8px', fontFamily: 'DM Sans, sans-serif', fontWeight: 300, letterSpacing: '0.04em' }}>
+          <span style={{ fontSize: 'clamp(1.2rem, 2.5vw, 1.8rem)', color: 'var(--text-muted)', display: 'block', marginBottom: '8px', fontFamily: 'DM Sans, sans-serif', fontWeight: 300, letterSpacing: '0.04em' }}>
             Wonderful to meet you, {name || 'there'}.
-        </span>
-        <span className="accent">What describes you?</span>
+          </span>
+          <span className="accent">What describes you?</span>
         </h1>
 
         <p className="tagline" style={{ marginBottom: '40px' }}>
@@ -74,7 +70,15 @@ export default function UserType() {
             onClick={() => setSelected('student')}
           >
             <span className="type-label">Student</span>
-            <span className="type-desc">I'm studying or in university</span>
+            <span className="type-desc">I'm currently studying</span>
+          </button>
+
+          <button
+            className={`type-card ${selected === 'jobseeker' ? 'selected' : ''}`}
+            onClick={() => setSelected('jobseeker')}
+          >
+            <span className="type-label">Job Seeker</span>
+            <span className="type-desc">I'm looking for my next opportunity</span>
           </button>
         </div>
 
