@@ -61,7 +61,7 @@ export default function Preload() {
             transition: 'all 0.5s ease',
             position: 'absolute',
           }}>
-            6 quick questions. No right or wrong answers. Just talk to us like you would a friend.
+            Tell us how you actually think. The messier, the better.
           </p>
         </div>
 
