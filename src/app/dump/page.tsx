@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
+
 type Section = 'workspace' | 'history' | 'profile' | 'settings' | 'tutorials' | 'privacy' | 'usage' | 'pricing';
 
 function RetryMicButton({ onTranscript }: { onTranscript: (text: string) => void }) {
@@ -51,6 +52,7 @@ export default function Dump() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [currentInteractionId, setCurrentInteractionId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const router = useRouter();
 
@@ -636,18 +638,7 @@ export default function Dump() {
               <div className="settings-row"><div className="settings-row-info"><span className="settings-row-title">Log out</span><span className="settings-row-desc">Sign out of your account</span></div><button className="settings-action-btn danger" onClick={handleLogout}>Log out</button></div>
               <div className="settings-row">
                 <div className="settings-row-info"><span className="settings-row-title">Delete account</span><span className="settings-row-desc">Permanently delete your account and all your data</span></div>
-                <button className="settings-action-btn danger" onClick={async () => {
-                  const confirmed = window.confirm('Are you sure? This will permanently delete your account and all your posts. This cannot be undone.');
-                  if (!confirmed) return;
-                  try {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    if (session?.user) {
-                      const res = await fetch('/api/delete-account', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: session.user.id }) });
-                      const data = await res.json();
-                      if (data.success) { await supabase.auth.signOut(); localStorage.clear(); router.push('/'); } else alert('Something went wrong. Please try again.');
-                    }
-                  } catch (e) { console.error(e); alert('Something went wrong. Please try again.'); }
-                }}>Delete account</button>
+                <button className="settings-action-btn danger" onClick={() => setShowDeleteConfirm(true)}>Delete account</button>
               </div>
             </div>
             <div className="section-divider" />
@@ -734,6 +725,30 @@ export default function Dump() {
         )}
 
       </div>
+
+     {showDeleteConfirm && (
+  <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+    <div className="modal-box" onClick={e => e.stopPropagation()}>
+      <h3 className="modal-title">Delete account?</h3>
+      <p className="modal-desc">This will permanently delete your account and all your posts. This cannot be undone.</p>
+      <div className="modal-actions">
+        <button className="feedback-btn" onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+        <button className="feedback-btn reject" onClick={async () => {
+          setShowDeleteConfirm(false);
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+              const res = await fetch('/api/delete-account', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: session.user.id }) });
+              const data = await res.json();
+              if (data.success) { await supabase.auth.signOut(); localStorage.clear(); router.push('/'); }
+              else alert('Something went wrong. Please try again.');
+            }
+          } catch (e) { console.error(e); alert('Something went wrong.'); }
+        }}>Delete account</button>
+      </div>
+    </div>
+  </div>
+)} 
     </main>
   );
 }
