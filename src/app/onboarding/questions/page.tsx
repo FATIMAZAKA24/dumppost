@@ -130,14 +130,19 @@ export default function Questions() {
 }
   };
 
-  const handleBack = () => {
-    if (current === 0) {
-      router.push('/onboarding/type');
-    } else {
-      setInput(answers[current - 1] || '');
-      setCurrent(current - 1);
-    }
-  };
+ const handleBack = () => {
+  // Save current input before going back
+  const newAnswers = [...answers];
+  newAnswers[current] = input.trim();
+  setAnswers(newAnswers);
+
+  if (current === 0) {
+    router.push('/onboarding/type');
+  } else {
+    setInput(newAnswers[current - 1] || '');
+    setCurrent(current - 1);
+  }
+};
 
   return (
     <main data-theme={dark ? 'dark' : 'light'} className="landing">
