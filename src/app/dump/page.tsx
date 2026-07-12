@@ -691,38 +691,53 @@ export default function Dump() {
 
         {/* ── PRICING ── */}
         {section === 'pricing' && (
-          <div className="section-page">
-            <div className="section-header"><h2 className="section-title">Plans</h2><p className="section-subtitle">You're in early access. Here's what's coming.</p></div>
-            <div className="pricing-grid" style={{ margin: '0 auto' }}>
-              <div className="pricing-card pricing-card-free">
-                <div className="pricing-card-top"><span className="pricing-plan-name">Beta</span><span className="pricing-plan-price">Free</span><span className="pricing-plan-desc">Full access while we're in beta. No card needed, no catch.</span></div>
-                <div className="pricing-features">
-                  <div className="pricing-feature"><i className="ti ti-check" /><span>Unlimited post generation</span></div>
-                  <div className="pricing-feature"><i className="ti ti-check" /><span>Personal voice profiling</span></div>
-                  <div className="pricing-feature"><i className="ti ti-check" /><span>Post history</span></div>
-                  <div className="pricing-feature"><i className="ti ti-check" /><span>Early access to everything we ship</span></div>
-                </div>
-                <div className="pricing-card-footer"><span className="pricing-current-badge">Your current plan</span></div>
-              </div>
-              <div className="pricing-card pricing-card-pro">
-                <div className="pricing-card-top">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span className="pricing-plan-name">Pro</span><span className="pro-badge">Coming soon</span></div>
-                  <span className="pricing-plan-price">Launching soon</span>
-                  <span className="pricing-plan-desc">Everything in Beta, plus:</span>
-                </div>
-                <div className="pricing-features">
-                  <div className="pricing-feature"><i className="ti ti-check" /><span>Everything in Beta</span></div>
-                  <div className="pricing-feature pro-locked" onClick={() => alert('Coming with Pro.')}><i className="ti ti-lock" /><span>Tone &amp; style controls</span><span className="pro-tag">Pro</span></div>
-                  <div className="pricing-feature pro-locked" onClick={() => alert('Coming with Pro.')}><i className="ti ti-lock" /><span>Multiple voice profiles</span><span className="pro-tag">Pro</span></div>
-                  <div className="pricing-feature pro-locked" onClick={() => alert('Coming with Pro.')}><i className="ti ti-lock" /><span>Post scheduling</span><span className="pro-tag">Pro</span></div>
-                  <div className="pricing-feature pro-locked" onClick={() => alert('Coming with Pro.')}><i className="ti ti-lock" /><span>Priority support</span><span className="pro-tag">Pro</span></div>
-                </div>
-                <div className="pricing-card-footer"><button className="settings-action-btn" onClick={() => window.location.href = 'mailto:dumppostquery@gmail.com?subject=DumpPost Pro Interest'}>Get notified →</button></div>
-              </div>
-            </div>
-            <p style={{ marginTop: '32px', fontSize: '0.78rem', color: 'var(--text-dim)', fontFamily: 'DM Sans, sans-serif', fontWeight: 300 }}>Beta users get locked-in early pricing when Pro launches.</p>
+  <div className="section-page">
+    <div className="section-header">
+      <h2 className="section-title">Plans</h2>
+      <p className="section-subtitle">You're in early access. Here's what's coming.</p>
+    </div>
+    <div className="pricing-grid" style={{ margin: '0 auto', maxWidth: '860px' }}>
+      <div className="pricing-card pricing-card-free">
+        <div className="pricing-card-top">
+          <span className="pricing-plan-name">Beta</span>
+          <span className="pricing-plan-price">Free</span>
+          <span className="pricing-plan-desc">Full access while we're in beta. No card needed, no catch.</span>
+        </div>
+        <div className="pricing-features">
+          <div className="pricing-feature"><i className="ti ti-check" /><span>Unlimited post generation</span></div>
+          <div className="pricing-feature"><i className="ti ti-check" /><span>Personal voice profiling</span></div>
+          <div className="pricing-feature"><i className="ti ti-check" /><span>Post history</span></div>
+          <div className="pricing-feature"><i className="ti ti-check" /><span>Early access to everything we ship</span></div>
+        </div>
+        <div className="pricing-card-footer"><span className="pricing-current-badge">Your current plan</span></div>
+      </div>
+
+      <div className="pricing-card pricing-card-pro">
+        <div className="pricing-card-top">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span className="pricing-plan-name">Pro</span>
+            <span className="pro-badge">Coming soon</span>
           </div>
-        )}
+          <span className="pricing-plan-price">Launching soon</span>
+          <span className="pricing-plan-desc">Everything in Beta, plus:</span>
+        </div>
+        <div className="pricing-features">
+          <div className="pricing-feature"><i className="ti ti-check" /><span>Everything in Beta</span></div>
+          <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>Multiple voice profiles — one per role or audience</span><span className="pro-tag">Pro</span></div>
+          <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>LinkedIn profile gap analysis — know what to post to grow</span><span className="pro-tag">Pro</span></div>
+          <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>Longer memory — gets smarter the more you use it</span><span className="pro-tag">Pro</span></div>
+          <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>Priority support</span><span className="pro-tag">Pro</span></div>
+        </div>
+        <div className="pricing-card-footer">
+          <button className="settings-action-btn" onClick={() => window.location.href = 'mailto:dumppostquery@gmail.com?subject=DumpPost Pro Interest'}>Get notified →</button>
+        </div>
+      </div>
+    </div>
+    <p style={{ marginTop: '32px', fontSize: '0.78rem', color: 'var(--text-dim)', fontFamily: 'DM Sans, sans-serif', fontWeight: 300 }}>
+      Beta users get locked-in early pricing when Pro launches.
+    </p>
+  </div>
+)}
 
       </div>
 
