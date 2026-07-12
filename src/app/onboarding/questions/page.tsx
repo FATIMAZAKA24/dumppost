@@ -43,6 +43,7 @@ export default function Questions() {
   const [dark, setDark] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [animating, setAnimating] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -71,6 +72,7 @@ export default function Questions() {
   }, [dark, mounted]);
 
   if (!mounted) return null;
+  if (redirecting) return null;
 
   const questions =
     userType === 'student' ? studentQuestions :
@@ -79,22 +81,24 @@ export default function Questions() {
 
   const handleNext = async () => {
     if (input.trim().length === 0) return;
-    const newAnswers = [...answers, input.trim()];
+    const newAnswers = [...answers];
+    newAnswers[current] = input.trim();
     setAnswers(newAnswers);
     setAnimating(true);
 
     if (current + 1 >= questions.length) {
       localStorage.setItem('dp-answers', JSON.stringify(newAnswers));
+      setRedirecting(true);
+      setInput('');
+      router.push('/loading');
 
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
+      supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user) {
           const savedName = localStorage.getItem('dp-name') || '';
           const savedType = localStorage.getItem('dp-type') || 'employed';
-
           localStorage.setItem('dp-user-id', session.user.id);
 
-          await supabase.from('users').upsert({
+          supabase.from('users').upsert({
             id: session.user.id,
             email: session.user.email,
             name: savedName,
@@ -111,26 +115,27 @@ export default function Questions() {
             }),
           }).catch(console.error);
 
-          await supabase.from('user_profiles').upsert({
+          supabase.from('user_profiles').upsert({
             user_id: session.user.id,
             onboarding_answers: newAnswers,
           });
         }
-      } catch (e) {
-        console.error('Failed to save profile:', e);
-      }
-
-      setInput('');
-      setTimeout(() => {
-        setAnimating(false);
-        router.push('/loading');
-      }, 300);
+      });
     } else {
       setTimeout(() => {
-        setInput('');
+        setInput(newAnswers[current + 1] || '');
         setAnimating(false);
         setCurrent(current + 1);
       }, 300);
+    }
+  };
+
+  const handleBack = () => {
+    if (current === 0) {
+      router.push('/onboarding/type');
+    } else {
+      setInput(answers[current - 1] || '');
+      setCurrent(current - 1);
     }
   };
 
@@ -144,6 +149,8 @@ export default function Questions() {
 
       <div className="questions-wrap">
         <p className="wordmark" style={{ marginBottom: '32px' }}>DumpPost</p>
+
+        <button className="q-back-btn" onClick={handleBack}>← Back</button>
 
         <div className="progress-stepper-wrap">
           <div className="progress-stepper">
