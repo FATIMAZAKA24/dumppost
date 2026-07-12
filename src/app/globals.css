@@ -3105,7 +3105,7 @@ body {
 .q-back-btn {
   background: none;
   border: none;
-  color: var(--text-dim);
+  color: #666666;
   font-size: 0.78rem;
   letter-spacing: 1px;
   cursor: pointer;
@@ -3113,7 +3113,9 @@ body {
   font-weight: 300;
   padding: 0;
   margin-bottom: 16px;
+  display: block;
+  align-self: flex-start;
   transition: color 0.2s;
 }
-.q-back-btn:hover { color: var(--text); }
+.q-back-btn:hover { color: #e8e8e8; }
 
