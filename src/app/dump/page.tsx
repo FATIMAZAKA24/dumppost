@@ -53,6 +53,7 @@ export default function Dump() {
   const [currentInteractionId, setCurrentInteractionId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [proInterest, setProInterest] = useState(false);
 
   const router = useRouter();
 
@@ -572,7 +573,19 @@ export default function Dump() {
                       <div key={latest.id} className="history-item">
                         <div className="history-item-header">
                           <span className="history-date">{new Date(latest.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}{hasVersions && <span className="version-badge">{versions.length} versions</span>}</span>
-                          <button className="settings-action-btn" onClick={() => navigator.clipboard.writeText(latest.generated_output)}>Copy</button>
+                          <button 
+                        className="settings-action-btn"
+                        onClick={async () => {
+                          const { data: { session } } = await supabase.auth.getSession();
+                          if (session?.user) {
+                            await supabase.from('users').update({ pro_interest: true }).eq('id', session.user.id);
+                            setProInterest(true);
+                          }
+                        }}
+                        disabled={proInterest}
+                      >
+                        {proInterest ? "You're on the list ✓" : "Get notified →"}
+                      </button>
                         </div>
                         <p className="history-post">{latest.generated_output}</p>
                         {hasVersions && (
@@ -728,8 +741,19 @@ export default function Dump() {
           <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>Priority support</span><span className="pro-tag">Pro</span></div>
         </div>
         <div className="pricing-card-footer">
-          <button className="settings-action-btn" onClick={() => window.location.href = 'mailto:dumppostquery@gmail.com?subject=DumpPost Pro Interest'}>Get notified →</button>
-        </div>
+        <button
+          className="settings-action-btn"
+          onClick={async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+              await supabase.from('users').update({ pro_interest: true }).eq('id', session.user.id);
+              setProInterest(true);
+            }
+          }}
+          disabled={proInterest}
+        >
+          {proInterest ? "You're on the list ✓" : "Get notified →"}
+        </button>        </div>
       </div>
     </div>
     <p style={{ marginTop: '32px', fontSize: '0.78rem', color: 'var(--text-dim)', fontFamily: 'DM Sans, sans-serif', fontWeight: 300 }}>
