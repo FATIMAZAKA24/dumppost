@@ -44,8 +44,6 @@ export default function Questions() {
   const [mounted, setMounted] = useState(false);
   const [animating, setAnimating] = useState(false);
   const router = useRouter();
-  const [redirecting, setRedirecting] = useState(false);
-
 
   useEffect(() => {
     setMounted(true);
@@ -86,51 +84,55 @@ export default function Questions() {
     setAnimating(true);
 
     if (current + 1 >= questions.length) {
-  localStorage.setItem('dp-answers', JSON.stringify(newAnswers));
-  setRedirecting(true);
-  setInput('');
-  router.push('/loading');
+      localStorage.setItem('dp-answers', JSON.stringify(newAnswers));
 
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    if (session?.user) {
-      const savedName = localStorage.getItem('dp-name') || '';
-      const savedType = localStorage.getItem('dp-type') || 'employed';
-      localStorage.setItem('dp-user-id', session.user.id);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const savedName = localStorage.getItem('dp-name') || '';
+          const savedType = localStorage.getItem('dp-type') || 'employed';
 
-      supabase.from('users').upsert({
-        id: session.user.id,
-        email: session.user.email,
-        name: savedName,
-        user_type: savedType,
-      });
+          localStorage.setItem('dp-user-id', session.user.id);
 
-      fetch('/api/extract-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: session.user.id,
-          answers: newAnswers,
-          userType: savedType,
-        }),
-      }).catch(console.error);
+          await supabase.from('users').upsert({
+            id: session.user.id,
+            email: session.user.email,
+            name: savedName,
+            user_type: savedType,
+          });
 
-      supabase.from('user_profiles').upsert({
-        user_id: session.user.id,
-        onboarding_answers: newAnswers,
-      });
+          fetch('/api/extract-profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: session.user.id,
+              answers: newAnswers,
+              userType: savedType,
+            }),
+          }).catch(console.error);
+
+          await supabase.from('user_profiles').upsert({
+            user_id: session.user.id,
+            onboarding_answers: newAnswers,
+          });
+        }
+      } catch (e) {
+        console.error('Failed to save profile:', e);
+      }
+
+      setInput('');
+      setTimeout(() => {
+        setAnimating(false);
+        router.push('/loading');
+      }, 300);
+    } else {
+      setTimeout(() => {
+        setInput('');
+        setAnimating(false);
+        setCurrent(current + 1);
+      }, 300);
     }
-  });
-} else {
-  setTimeout(() => {
-    setInput('');
-    setAnimating(false);
-    setCurrent(current + 1);
-  }, 300);
-}
-};
-
-if (!mounted) return null;
-if (redirecting) return null;  // ADD THIS LINE
+  };
 
   return (
     <main data-theme={dark ? 'dark' : 'light'} className="landing">

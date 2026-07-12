@@ -3102,3 +3102,17 @@ body {
   justify-content: flex-end;
 }
 
+.q-back-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  letter-spacing: 1px;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300;
+  padding: 0;
+  transition: color 0.2s;
+}
+.q-back-btn:hover { color: var(--text); }
+
