@@ -121,13 +121,13 @@ export default function Questions() {
           });
         }
       });
-    } else {
-      setTimeout(() => {
-        setInput(newAnswers[current + 1] || '');
-        setAnimating(false);
-        setCurrent(current + 1);
-      }, 300);
-    }
+   } else {
+  setTimeout(() => {
+    setInput(newAnswers[current + 1] || '');
+    setAnimating(false);
+    setCurrent(current + 1);
+  }, 300);
+}
   };
 
   const handleBack = () => {
