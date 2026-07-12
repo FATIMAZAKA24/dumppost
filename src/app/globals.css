@@ -3112,6 +3112,7 @@ body {
   font-family: 'DM Sans', sans-serif;
   font-weight: 300;
   padding: 0;
+  margin-bottom: 16px;
   transition: color 0.2s;
 }
 .q-back-btn:hover { color: var(--text); }
