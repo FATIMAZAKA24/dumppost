@@ -696,7 +696,7 @@ export default function Dump() {
       <h2 className="section-title">Plans</h2>
       <p className="section-subtitle">You're in early access. Here's what's coming.</p>
     </div>
-    <div className="pricing-grid" style={{ margin: '0 auto', maxWidth: '860px' }}>
+    <div className="pricing-grid">
       <div className="pricing-card pricing-card-free">
         <div className="pricing-card-top">
           <span className="pricing-plan-name">Beta</span>
@@ -722,10 +722,9 @@ export default function Dump() {
           <span className="pricing-plan-desc">Everything in Beta, plus:</span>
         </div>
         <div className="pricing-features">
-          <div className="pricing-feature"><i className="ti ti-check" /><span>Everything in Beta</span></div>
-          <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>Multiple voice profiles — one per role or audience</span><span className="pro-tag">Pro</span></div>
-          <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>LinkedIn profile gap analysis — know what to post to grow</span><span className="pro-tag">Pro</span></div>
-          <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>Longer memory — gets smarter the more you use it</span><span className="pro-tag">Pro</span></div>
+          <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>Multiple voice profiles</span><span className="pro-tag">Pro</span></div>
+          <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>LinkedIn profile gap analysis</span><span className="pro-tag">Pro</span></div>
+          <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>Longer memory & smarter outputs</span><span className="pro-tag">Pro</span></div>
           <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>Priority support</span><span className="pro-tag">Pro</span></div>
         </div>
         <div className="pricing-card-footer">
