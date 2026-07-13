@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       .eq('user_response', 'rejected')
       .not('rejection_reason', 'is', null)
       .order('created_at', { ascending: false })
-      .limit(5);
+      .limit(20);
 
     const { data: edits } = await supabaseAdmin
       .from('interactions')
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
       .eq('user_response', 'edited')
       .not('edits_made', 'is', null)
       .order('created_at', { ascending: false })
-      .limit(5);
+      .limit(20);
 
     const rejectionContext = rejections?.length
       ? rejections.map((r: {rejection_reason: string}) => `- ${r.rejection_reason}`).join('\n')
