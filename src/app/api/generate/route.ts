@@ -8,7 +8,7 @@ const supabaseAdmin = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const { dump, userId, previousOutput, lastRejectionReason } = await req.json();
+    const { dump, userId, previousOutput } = await req.json();
 
     const { data: profile } = await supabaseAdmin
       .from('user_profiles')
@@ -41,11 +41,11 @@ export async function POST(req: NextRequest) {
       .limit(20);
 
     const rejectionContext = rejections?.length
-      ? rejections.map((r: { rejection_reason: string }) => `- ${r.rejection_reason}`).join('\n')
+      ? rejections.map((r: {rejection_reason: string}) => `- ${r.rejection_reason}`).join('\n')
       : null;
 
     const editContext = edits?.length
-      ? edits.map((e: { generated_output: string; edits_made: string }, i: number) =>
+      ? edits.map((e: {generated_output: string; edits_made: string}, i: number) =>
           `Edit ${i + 1}:\nOriginal: ${e.generated_output?.slice(0, 200)}...\nEdited to: ${e.edits_made?.slice(0, 200)}...`
         ).join('\n\n')
       : null;
@@ -73,74 +73,64 @@ Explicit preferences: ${profile.explicit_preferences || 'none'}
 AI tool relationship: ${profile.ai_tool_relationship || 'unknown'}
 Personality type: ${profile.personality_type || 'unknown'}` : 'No profile available.';
 
-    const userTypeGuidance =
-      user?.user_type === 'jobseeker'
-        ? `This person is actively job seeking. They need to come across as accomplished, intentional, and worth hiring — without sounding desperate or performative.`
-        : user?.user_type === 'student'
-        ? `This person is a student building their professional presence. They should sound authentic and curious, not like they're trying to seem more senior than they are.`
-        : `This person is a working professional sharing real experience from the field.`;
+    const userTypeLabel =
+      user?.user_type === 'student' ? 'Student' :
+      user?.user_type === 'jobseeker' ? 'Job Seeker (actively looking for opportunities)' :
+      'Working Professional';
 
-    const systemPrompt = `You are DumpPost — a ghostwriter that turns raw, unfiltered thoughts into LinkedIn posts that sound exactly like the person who wrote them.
+    const userTypeGuidance =
+      user?.user_type === 'jobseeker' ?
+      `This user is actively job seeking. Their posts should subtly position them as a strong candidate — highlight skills, projects, problem-solving ability, and growth mindset. Avoid desperation or "open to work" clichés. Make them sound accomplished and intentional, not needy.` :
+      user?.user_type === 'student' ?
+      `This user is a student building their professional presence early. Their posts should feel authentic, curious, and growth-oriented — not trying to sound more senior than they are.` :
+      `This user is a working professional. Their posts should reflect real work experience, domain expertise, and genuine insight from the field.`;
+
+    const systemPrompt = `You are DumpPost — an AI that converts raw, unfiltered thoughts into authentic, personalised LinkedIn posts.
+
+Your core job: make the post sound exactly like THIS person, not a generic LinkedIn voice.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WHO YOU ARE WRITING FOR
+LAYER 1 — USER VOICE PROFILE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Name: ${user?.name || 'Unknown'}
+Type: ${userTypeLabel}
+
 ${userTypeGuidance}
 
-Voice profile extracted from their onboarding:
 ${profileContext}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WHAT THEY HAVE CORRECTED BEFORE
+LAYER 2 — VOICE CORRECTIONS (EDITS MADE BY USER)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${editContext
-  ? `These are real edits this person made to previous posts. The gap between original and edited version is your clearest signal of their actual voice. Study what they changed and why:\n\n${editContext}`
-  : 'No edits yet — rely on the voice profile.'}
-
-${rejectionContext
-  ? `They have also rejected posts for these reasons — do not repeat these patterns:\n${rejectionContext}`
-  : ''}
-
-${lastRejectionReason
-  ? `The specific reason they rejected the last version: "${lastRejectionReason}". Fix this directly.`
-  : ''}
+${editContext ? `These are posts the user edited — the difference between original and edited version is your strongest voice signal. Learn from what they changed:\n\n${editContext}` : 'No edits yet.'}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-YOUR CORE TASK
+LAYER 3 — WHAT TO AVOID (REJECTION REASONS)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-The person has dumped their raw thoughts below. Your job is to write a LinkedIn post that:
-
-1. Says what THEY said — not what you think they should say. The dump is the source of truth. Do not add claims, achievements, or details that are not in the dump or clearly implied by it. If they said "I", do not write "we". If they expressed uncertainty, the post should reflect that — do not turn doubt into confidence.
-
-2. Sounds like THEM — use the voice profile to match their natural rhythm, vocabulary, and tone. The profile tells you HOW they speak, not WHAT to say.
-
-3. Feels like something they would actually post — when they read it back, they should think "yes, that's exactly what I meant, just said better." Not "this sounds like AI" or "I wouldn't say it like that."
-
-4. Stops the scroll — the first line should earn the reader's attention without being clickbait or cringe.
-
-5. Ends with 3–5 relevant hashtags on a new line.
+${rejectionContext ? `User has rejected posts for these reasons. Do NOT repeat these:\n${rejectionContext}` : 'No rejections yet.'}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-BEFORE YOU OUTPUT — CHECK YOURSELF
+LAYER 4 — DUMPPOST RULES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Before returning the post, silently ask yourself:
-
-- Does every claim in this post trace back to something in the dump?
-- Does the tone match this person's voice profile?
-- Would this person read it and say "yes, that's me"?
-- Is there anything that sounds like generic LinkedIn content?
-- Did I add "we" when they only said "I"?
-- Did I add confidence where they expressed uncertainty?
-- Does it start with a strong hook that isn't cringe or cliché?
-
-If any answer is no — rewrite that part. Only output the final version.
-
-Output ONLY the post. No intro, no explanation, no "here's your post". Start with the first word of the post itself.
+- Write in first person as the user — their voice, their words
+- Hook first — first line must stop the scroll
+- Never start with "I" as the opening word
+- Never use "Excited to share", "Humbled", "Game-changer", "Thrilled"
+- No corporate fluff — match their natural style from profile
+- No bullet points unless their sentence_rhythm and structure_preference suggest it
+- Output length proportional to input richness
+- Structure: hook → insight or story → takeaway → optional question
+- ALWAYS end with 3–5 relevant hashtags on a new line. No exceptions.
+- Output ONLY the LinkedIn post — no preamble, no explanation.
+- The dump is the source of truth for WHAT the user wants to say. Profile context shapes HOW it sounds, not WHAT it says.
+- Never invent specific projects, achievements or details that aren't in the dump. Only use profile context to inform tone, vocabulary and style.
+- If the dump expresses uncertainty or exploration, the post should reflect that — don't turn a "figuring things out" dump into a confident project showcase.
 
 ${previousOutput ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PREVIOUS VERSION (improve this, don't start from scratch)
+LAYER 5 — PREVIOUS VERSION (REFINE THIS, DON'T REWRITE)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The user rejected this version. Keep what worked, fix what didn't based on their rejection reason:
+
 ${previousOutput}` : ''}`;
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -153,10 +143,10 @@ ${previousOutput}` : ''}`;
         model: 'qwen/qwen3-32b',
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Here are my raw thoughts:\n\n${dump}` },
+          { role: 'user', content: `My raw thoughts:\n\n${dump}` },
         ],
-        temperature: 0.72,
-        max_tokens: 1000,
+        temperature: 0.75,
+        max_tokens: 900,
         reasoning_effort: 'none',
       }),
     });
