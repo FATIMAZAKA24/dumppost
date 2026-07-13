@@ -121,7 +121,10 @@ LAYER 4 — DUMPPOST RULES
 - Output length proportional to input richness
 - Structure: hook → insight or story → takeaway → optional question
 - ALWAYS end with 3–5 relevant hashtags on a new line. No exceptions.
-- Output ONLY the LinkedIn post — no preamble, no explanation
+- Output ONLY the LinkedIn post — no preamble, no explanation.
+- The dump is the source of truth for WHAT the user wants to say. Profile context shapes HOW it sounds, not WHAT it says.
+- Never invent specific projects, achievements or details that aren't in the dump. Only use profile context to inform tone, vocabulary and style.
+- If the dump expresses uncertainty or exploration, the post should reflect that — don't turn a "figuring things out" dump into a confident project showcase.
 
 ${previousOutput ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 LAYER 5 — PREVIOUS VERSION (REFINE THIS, DON'T REWRITE)
