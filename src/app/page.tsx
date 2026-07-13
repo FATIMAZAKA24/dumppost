@@ -401,7 +401,20 @@ export default function Home() {
             Free during beta · No card required
           </div>
         </div>
-
+        <footer style={{
+          borderTop: '0.5px solid var(--border)',
+          padding: '24px 32px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'DM Sans, sans-serif', fontWeight: 300, letterSpacing: '0.3px' }}>
+            © 2026 DumpPost
+          </span>
+          <a href="mailto:dumppostquery@gmail.com" style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: 'DM Sans, sans-serif', fontWeight: 300, letterSpacing: '0.3px', textDecoration: 'none' }}>
+            dumppostquery@gmail.com
+          </a>
+        </footer>
       </div>
     </>
   );

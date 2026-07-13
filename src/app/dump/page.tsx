@@ -61,6 +61,7 @@ export default function Dump() {
   const [editTypeValue, setEditTypeValue] = useState('');
   const [editAnswerValue, setEditAnswerValue] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const router = useRouter();
 
@@ -837,7 +838,7 @@ export default function Dump() {
             <div className="settings-group">
               <p className="settings-group-label">Account</p>
               <div className="settings-row"><div className="settings-row-info"><span className="settings-row-title">Email</span><span className="settings-row-desc">Your account email address</span></div><span className="settings-row-value">{email || '—'}</span></div>
-              <div className="settings-row"><div className="settings-row-info"><span className="settings-row-title">Redo onboarding</span><span className="settings-row-desc">Reset your profile and answer questions again</span></div><button className="settings-action-btn" onClick={() => { localStorage.removeItem('dp-answers'); localStorage.removeItem('dp-type'); localStorage.removeItem('dp-name'); router.push('/onboarding'); }}>Reset</button></div>
+              <div className="settings-row"><div className="settings-row-info"><span className="settings-row-title">Redo onboarding</span><span className="settings-row-desc">Reset your profile and answer questions again</span></div><button className="settings-action-btn" onClick={() => setShowResetConfirm(true)}>Reset</button></div>
               <div className="settings-row"><div className="settings-row-info"><span className="settings-row-title">Log out</span><span className="settings-row-desc">Sign out of your account</span></div><button className="settings-action-btn danger" onClick={handleLogout}>Log out</button></div>
               <div className="settings-row">
                 <div className="settings-row-info"><span className="settings-row-title">Delete account</span><span className="settings-row-desc">Permanently delete your account and all your data</span></div>
@@ -977,6 +978,23 @@ export default function Dump() {
     </div>
   </div>
 )} 
+{showResetConfirm && (
+  <div className="modal-overlay" onClick={() => setShowResetConfirm(false)}>
+    <div className="modal-box" onClick={e => e.stopPropagation()}>
+      <h3 className="modal-title">Redo onboarding?</h3>
+      <p className="modal-desc">This will reset your voice profile and take you through the questions again. Your post history won't be affected.</p>
+      <div className="modal-actions">
+        <button className="feedback-btn" onClick={() => setShowResetConfirm(false)}>Cancel</button>
+        <button className="feedback-btn reject" onClick={() => {
+          localStorage.removeItem('dp-answers');
+          localStorage.removeItem('dp-type');
+          localStorage.removeItem('dp-name');
+          router.push('/onboarding');
+        }}>Reset & redo</button>
+      </div>
+    </div>
+  </div>
+)}
     </main>
   );
 }
