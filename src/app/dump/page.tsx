@@ -54,6 +54,13 @@ export default function Dump() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [proInterest, setProInterest] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [editingType, setEditingType] = useState(false);
+  const [editingAnswerIndex, setEditingAnswerIndex] = useState<number | null>(null);
+  const [editNameValue, setEditNameValue] = useState('');
+  const [editTypeValue, setEditTypeValue] = useState('');
+  const [editAnswerValue, setEditAnswerValue] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
 
   const router = useRouter();
 
@@ -573,19 +580,7 @@ export default function Dump() {
                       <div key={latest.id} className="history-item">
                         <div className="history-item-header">
                           <span className="history-date">{new Date(latest.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}{hasVersions && <span className="version-badge">{versions.length} versions</span>}</span>
-                          <button 
-                        className="settings-action-btn"
-                        onClick={async () => {
-                          const { data: { session } } = await supabase.auth.getSession();
-                          if (session?.user) {
-                            await supabase.from('users').update({ pro_interest: true }).eq('id', session.user.id);
-                            setProInterest(true);
-                          }
-                        }}
-                        disabled={proInterest}
-                      >
-                        {proInterest ? "You're on the list ✓" : "Get notified →"}
-                      </button>
+                        <button className="settings-action-btn" onClick={() => navigator.clipboard.writeText(latest.generated_output)}>Copy</button>
                         </div>
                         <p className="history-post">{latest.generated_output}</p>
                         {hasVersions && (
@@ -612,29 +607,224 @@ export default function Dump() {
         )}
 
         {/* ── PROFILE ── */}
-        {section === 'profile' && (
-          <div className="section-page">
-            <div className="section-header"><h2 className="section-title">Profile</h2><p className="section-subtitle">How DumpPost knows you.</p></div>
-            <div className="profile-grid">
-              <div className="profile-card"><span className="profile-card-label">Name</span><span className="profile-card-value">{name || '—'}</span></div>
-              <div className="profile-card"><span className="profile-card-label">Type</span><span className="profile-card-value" style={{ textTransform: 'capitalize' }}>{localStorage.getItem('dp-type') === 'employed' ? 'Working Professional' : localStorage.getItem('dp-type') === 'student' ? 'Student' : '—'}</span></div>
-            </div>
-            <div className="section-divider" />
-            <div className="section-subheader"><h3 className="section-subtitle" style={{ color: 'var(--text)', marginBottom: '4px' }}>Your onboarding answers</h3><p className="section-subtitle">These shape how your posts sound like you.</p></div>
-            <div className="answers-list">
-              {(() => {
-                const answers = JSON.parse(localStorage.getItem('dp-answers') || '[]');
-                const type = localStorage.getItem('dp-type');
-                const employedQuestions = ["What are you working on right now?","What's the most interesting part of it?","What's been giving you the most trouble with it?","Who do you want reading your posts — and what do you want them to think when they do?","What part of your work do you actually enjoy?","Anything specific you want DumpPost to keep in mind?"];
-                const studentQuestions = ["What are you currently studying or learning?","What's the most interesting thing you've come across recently?","What's something you've been trying to figure out or struggling with?","Who do you want reading your posts — and what do you want them to think when they do?","What part of your field do you actually enjoy?","Anything specific you want DumpPost to keep in mind?"];
-                const questions = type === 'student' ? studentQuestions : employedQuestions;
-                if (answers.length === 0) return <p className="section-subtitle">No answers yet — complete onboarding first.</p>;
-                return answers.map((answer: string, i: number) => (<div key={i} className="answer-item"><span className="answer-q">{questions[i]}</span><span className="answer-a">{answer}</span></div>));
-              })()}
+{section === 'profile' && (
+  <div className="section-page">
+    <div className="section-header">
+      <h2 className="section-title">Profile</h2>
+      <p className="section-subtitle">How DumpPost knows you.</p>
+    </div>
+
+    <div className="profile-grid">
+      {/* NAME CARD */}
+      <div className="profile-card">
+        <span className="profile-card-label">Name</span>
+        {editingName ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
+            <input
+              className="auth-input"
+              value={editNameValue}
+              onChange={e => setEditNameValue(e.target.value)}
+              autoFocus
+              style={{ backgroundColor: 'transparent', fontSize: '1rem' }}
+            />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="feedback-btn" onClick={async () => {
+                if (!editNameValue.trim()) return;
+                setProfileSaving(true);
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.user) {
+                  await supabase.from('users').update({ name: editNameValue.trim() }).eq('id', session.user.id);
+                  localStorage.setItem('dp-name', editNameValue.trim());
+                  setName(editNameValue.trim());
+                }
+                setEditingName(false);
+                setProfileSaving(false);
+              }}>
+                {profileSaving ? 'Saving...' : 'Save'}
+              </button>
+              <button className="feedback-btn" onClick={() => setEditingName(false)}>Cancel</button>
             </div>
           </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span className="profile-card-value">{name || '—'}</span>
+            <button className="settings-action-btn" onClick={() => { setEditNameValue(name); setEditingName(true); }}>
+              <i className="ti ti-pencil" />
+            </button>
+          </div>
         )}
+      </div>
 
+      {/* TYPE CARD */}
+      <div className="profile-card">
+        <span className="profile-card-label">Type</span>
+        {editingType ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {[
+                { value: 'employed', label: 'Working Professional' },
+                { value: 'student', label: 'Student' },
+                { value: 'jobseeker', label: 'Job Seeker' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setEditTypeValue(opt.value)}
+                  style={{
+                    textAlign: 'left',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: `0.5px solid ${editTypeValue === opt.value ? 'var(--accent)' : 'var(--border)'}`,
+                    background: editTypeValue === opt.value ? 'var(--surface)' : 'transparent',
+                    color: editTypeValue === opt.value ? 'var(--accent)' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    fontFamily: 'DM Sans, sans-serif',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="feedback-btn" onClick={async () => {
+                if (!editTypeValue) return;
+                setProfileSaving(true);
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.user) {
+                  await supabase.from('users').update({ user_type: editTypeValue }).eq('id', session.user.id);
+                  localStorage.setItem('dp-type', editTypeValue);
+                }
+                setEditingType(false);
+                setProfileSaving(false);
+              }}>
+                {profileSaving ? 'Saving...' : 'Save'}
+              </button>
+              <button className="feedback-btn" onClick={() => setEditingType(false)}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span className="profile-card-value">
+              {localStorage.getItem('dp-type') === 'employed' ? 'Working Professional'
+                : localStorage.getItem('dp-type') === 'student' ? 'Student'
+                : localStorage.getItem('dp-type') === 'jobseeker' ? 'Job Seeker'
+                : '—'}
+            </span>
+            <button className="settings-action-btn" onClick={() => {
+              setEditTypeValue(localStorage.getItem('dp-type') || 'employed');
+              setEditingType(true);
+            }}>
+  <i className="ti ti-pencil" />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+
+    <div className="section-divider" />
+
+    <div className="section-subheader">
+      <h3 className="section-subtitle" style={{ color: 'var(--text)', marginBottom: '4px' }}>Your onboarding answers</h3>
+      <p className="section-subtitle">These shape how your posts sound like you.</p>
+    </div>
+
+    <div className="answers-list">
+      {(() => {
+        const answers = JSON.parse(localStorage.getItem('dp-answers') || '[]');
+        const type = localStorage.getItem('dp-type');
+        const employedQuestions = [
+          "What are you working on right now?",
+          "What's the most interesting part of it?",
+          "What's been giving you the most trouble with it?",
+          "Who do you want reading your posts — and what do you want them to think when they do?",
+          "What part of your work do you actually enjoy?",
+          "Anything specific you want DumpPost to keep in mind?",
+        ];
+        const studentQuestions = [
+          "What are you currently studying or learning?",
+          "What's the most interesting thing you've come across recently?",
+          "What's something you've been trying to figure out or struggling with?",
+          "Who do you want reading your posts — and what do you want them to think when they do?",
+          "What part of your field do you actually enjoy?",
+          "Anything specific you want DumpPost to keep in mind?",
+        ];
+        const jobseekerQuestions = [
+          "What kind of role or field are you targeting?",
+          "What's the most relevant thing you've worked on or built?",
+          "What's been the hardest part of your job search so far?",
+          "Who do you want reading your posts?",
+          "What do you want people to think about you when they read your posts?",
+          "Anything specific you want DumpPost to keep in mind?",
+        ];
+        const questions = type === 'student' ? studentQuestions
+          : type === 'jobseeker' ? jobseekerQuestions
+          : employedQuestions;
+
+        if (answers.length === 0) return <p className="section-subtitle">No answers yet — complete onboarding first.</p>;
+
+        return answers.map((answer: string, i: number) => (
+          <div key={i} className="answer-item">
+            <span className="answer-q">{questions[i]}</span>
+            {editingAnswerIndex === i ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
+                <textarea
+                  className="q-textarea"
+                  value={editAnswerValue}
+                  onChange={e => setEditAnswerValue(e.target.value)}
+                  rows={3}
+                  autoFocus
+                  style={{ fontSize: '0.85rem' }}
+                />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button className="feedback-btn" onClick={async () => {
+                    if (!editAnswerValue.trim()) return;
+                    setProfileSaving(true);
+                    const currentAnswers = JSON.parse(localStorage.getItem('dp-answers') || '[]');
+                    currentAnswers[i] = editAnswerValue.trim();
+                    localStorage.setItem('dp-answers', JSON.stringify(currentAnswers));
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session?.user) {
+                      await supabase.from('user_profiles').update({
+                        onboarding_answers: currentAnswers
+                      }).eq('user_id', session.user.id);
+                      // Re-extract profile signals in background
+                      const savedType = localStorage.getItem('dp-type') || 'employed';
+                      fetch('/api/extract-profile', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          userId: session.user.id,
+                          answers: currentAnswers,
+                          userType: savedType,
+                        }),
+                      }).catch(console.error);
+                    }
+                    setEditingAnswerIndex(null);
+                    setProfileSaving(false);
+                  }}>
+                    {profileSaving ? 'Saving...' : 'Save'}
+                  </button>
+                  <button className="feedback-btn" onClick={() => setEditingAnswerIndex(null)}>Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+                <span className="answer-a">{answer}</span>
+                <button
+                  className="settings-action-btn"
+                  style={{ flexShrink: 0, marginTop: '2px' }}
+                  onClick={() => { setEditAnswerValue(answer); setEditingAnswerIndex(i); }}
+                >
+                  <i className="ti ti-pencil" />
+                </button>
+              </div>
+            )}
+          </div>
+        ));
+      })()}
+    </div>
+  </div>
+)}
         {/* ── SETTINGS ── */}
         {section === 'settings' && (
           <div className="section-page">
