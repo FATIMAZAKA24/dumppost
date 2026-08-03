@@ -133,28 +133,40 @@ The user rejected this version. Keep what worked, fix what didn't based on their
 
 ${previousOutput}` : ''}`;
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    // ── Groq API call ──
+    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'qwen/qwen3-32b',
+        model: 'llama-3.3-70b-versatile',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `My raw thoughts:\n\n${dump}` },
         ],
         temperature: 0.75,
         max_tokens: 900,
-        reasoning_effort: 'none',
       }),
     });
 
-    const data = await response.json();
+    // Log the raw status + body so we can see exactly what Groq returns
+    if (!groqRes.ok) {
+      const errText = await groqRes.text();
+      console.error('Groq error status:', groqRes.status);
+      console.error('Groq error body:', errText);
+      return NextResponse.json(
+        { error: `Groq API error ${groqRes.status}: ${errText}` },
+        { status: 500 }
+      );
+    }
+
+    const data = await groqRes.json();
     const fullResponse = data.choices?.[0]?.message?.content?.trim();
 
     if (!fullResponse) {
+      console.error('Groq returned no content:', JSON.stringify(data));
       return NextResponse.json({ error: 'No post generated' }, { status: 500 });
     }
 
