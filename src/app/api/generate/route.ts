@@ -40,8 +40,7 @@ export async function POST(req: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(5);
 
-    // ── Build raw onboarding Q&A block ──
-    // This is the user's actual voice — their words, not labels extracted from them
+    // ── Raw onboarding Q&A ──
     const rawAnswers: string[] = profile?.onboarding_answers || [];
     const rawQuestions: string[] = profile?.onboarding_questions || [];
     const onboardingBlock = rawAnswers.length
@@ -50,19 +49,19 @@ export async function POST(req: NextRequest) {
         ).join('\n\n')
       : null;
 
-    // ── Build edit signal block ──
+    // ── Edit signal ──
     const editBlock = edits?.length
       ? edits.map((e: { generated_output: string; edits_made: string }, i: number) =>
           `Edit ${i + 1}:\nOriginal: ${e.generated_output?.slice(0, 300)}\nChanged to: ${e.edits_made?.slice(0, 300)}`
         ).join('\n\n---\n\n')
       : null;
 
-    // ── Build rejection block ──
+    // ── Rejection signal ──
     const rejectionBlock = rejections?.length
       ? rejections.map((r: { rejection_reason: string }) => `- ${r.rejection_reason}`).join('\n')
       : null;
 
-    // ── User type context ──
+    // ── User type ──
     const userTypeGuidance =
       user?.user_type === 'jobseeker'
         ? `This person is actively job seeking. Posts should position them as skilled and intentional — not desperate. Highlight competence, curiosity, growth. Never mention "open to work".`
@@ -70,7 +69,7 @@ export async function POST(req: NextRequest) {
         ? `This person is a student. Posts should feel genuinely curious and growth-oriented — not trying to sound more senior than they are.`
         : `This person is a working professional. Posts should reflect real experience and genuine insight from the field.`;
 
-    // ── Extracted signal summary (secondary, not primary) ──
+    // ── Extracted signals (secondary) ──
     const signalSummary = profile ? [
       profile.domain && `Field: ${profile.domain}`,
       profile.role && `Role: ${profile.role}`,
@@ -85,59 +84,69 @@ export async function POST(req: NextRequest) {
       profile.explicit_preferences && `Explicit preferences: ${profile.explicit_preferences}`,
     ].filter(Boolean).join('\n') : null;
 
-    const systemPrompt = `You are DumpPost. You turn raw, unfiltered thoughts into LinkedIn posts that sound exactly like the person who wrote them — not like AI, not like a LinkedIn template.
+    const systemPrompt = `You are DumpPost. You turn raw, unfiltered thoughts into LinkedIn posts that sound exactly like the person who wrote them.
 
-Your single most important job: preserve their voice. If they write casually, write casually. If they're uncertain, stay uncertain. If they're technical and dry, stay technical and dry. Never polish away their personality.
+Your output MUST follow this exact two-part format — no exceptions:
+
+<thinking>
+Your private reasoning goes here. Before writing anything, think through:
+1. VOICE ANALYSIS — Read the onboarding answers carefully. How does this person actually write? Note their sentence length, word choices, formality level, how much they hedge vs how confident they sound, any distinctive phrases or patterns. Be specific — don't say "casual", say "uses lowercase, short bursts, self-deprecating".
+2. DUMP ANALYSIS — What is the core thing they want to say? What's the emotion or insight underneath the raw thought? What should the hook be?
+3. VOICE MATCH PLAN — How will you write this post to sound like them specifically? What would you avoid that would sound too polished, too AI, too generic?
+4. STRUCTURE PLAN — What's the opening line? How does it flow? How does it end?
+</thinking>
+<post>
+The LinkedIn post goes here. Nothing else — no intro, no explanation, no "Here's your post:". Just the post itself, ending with 3-5 hashtags on a new line.
+</post>
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 WHO THIS PERSON IS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Name: ${user?.name || 'Unknown'}
 ${userTypeGuidance}
-${signalSummary ? `\nExtracted signals (use for calibration, not as rules):\n${signalSummary}` : ''}
+${signalSummary ? `\nExtracted signals (use for calibration only):\n${signalSummary}` : ''}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-THEIR ACTUAL WORDS (most important voice signal)
+THEIR ACTUAL WORDS — primary voice signal
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${onboardingBlock
-  ? `These are the user's own answers in their own words. Study how they write — their sentence length, word choices, level of formality, how much they hedge vs how confident they sound. This is your voice reference:\n\n${onboardingBlock}`
-  : 'No onboarding answers available yet.'}
+  ? `Read these carefully before writing anything. This is how they actually write:\n\n${onboardingBlock}`
+  : 'No onboarding answers available yet — rely on signals above.'}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WHAT THEY'VE CORRECTED (strongest signal if available)
+WHAT THEY'VE CORRECTED — strongest signal if available
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${editBlock
-  ? `The user has edited previous posts. The gap between original and edited version tells you exactly what they don't like. Learn from every change:\n\n${editBlock}`
-  : 'No edits yet — rely on onboarding answers for voice calibration.'}
+  ? `Study every change they made — the gap between original and edited is your clearest voice signal:\n\n${editBlock}`
+  : 'No edits yet.'}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 WHAT TO AVOID
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${rejectionBlock
-  ? `They've rejected posts for these reasons — do not repeat:\n${rejectionBlock}`
+  ? `They rejected posts for these reasons:\n${rejectionBlock}`
   : 'No rejections yet.'}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 WRITING RULES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- First line must earn attention — but make it feel like them, not a copywriting hook
+- First line must earn attention — but feel like them, not a copywriting hook
 - Never open with "I"
 - Never use: "Excited to share", "Humbled", "Game-changer", "Thrilled", "Delighted"
 - No corporate filler — cut anything that sounds like a press release
-- Stay true to the dump: if they're figuring something out, the post should reflect that uncertainty, not fake confidence
-- Never invent details not in the dump. Use profile context only to shape tone and style
-- Length proportional to input — a short dump should produce a short post
+- If the dump expresses uncertainty, the post should stay uncertain — never fake confidence
+- Never invent details not in the dump
+- Length proportional to input richness
 - End with 3–5 relevant hashtags on a new line
-- Output ONLY the post. No intro, no explanation, no "Here's your post:"
 
 ${previousOutput
   ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PREVIOUS VERSION — IMPROVE, DON'T REWRITE
+PREVIOUS VERSION — IMPROVE DON'T REWRITE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-The user wasn't happy with this. Keep what worked, fix what didn't:\n\n${previousOutput}`
+User wasn't happy with this. Keep what worked, fix what didn't:\n\n${previousOutput}`
   : ''}`;
 
-    const userMessage = `Here's what's on my mind — turn this into a LinkedIn post in my voice:\n\n${dump}`;
+    const userMessage = `Here's what's on my mind:\n\n${dump}`;
 
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -152,7 +161,7 @@ The user wasn't happy with this. Keep what worked, fix what didn't:\n\n${previou
           { role: 'user', content: userMessage },
         ],
         temperature: 0.92,
-        max_tokens: 900,
+        max_tokens: 1400,
       }),
     });
 
@@ -170,12 +179,24 @@ The user wasn't happy with this. Keep what worked, fix what didn't:\n\n${previou
       return NextResponse.json({ error: 'No post generated' }, { status: 500 });
     }
 
-    const post = fullResponse
-      .replace(/<reasoning>[\s\S]*?<\/reasoning>/g, '')
-      .replace(/<think>[\s\S]*?<\/think>/g, '')
-      .trim();
+    // Extract reasoning and post separately
+    const reasoningMatch = fullResponse.match(/<thinking>([\s\S]*?)<\/thinking>/);
+    const postMatch = fullResponse.match(/<post>([\s\S]*?)<\/post>/);
 
-    return NextResponse.json({ post, reasoning: null });
+    const reasoning = reasoningMatch?.[1]?.trim() || null;
+
+    // If model followed format, use the post block. Otherwise fall back to stripping tags.
+    const post = postMatch?.[1]?.trim() ||
+      fullResponse
+        .replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
+        .replace(/<post>|<\/post>/g, '')
+        .trim();
+
+    if (!post) {
+      return NextResponse.json({ error: 'No post generated' }, { status: 500 });
+    }
+
+    return NextResponse.json({ post, reasoning });
 
   } catch (err) {
     console.error('Generate error:', err);
