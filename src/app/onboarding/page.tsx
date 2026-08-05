@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
 export default function Onboarding() {
   const [name, setName] = useState('');
@@ -25,11 +26,23 @@ export default function Onboarding() {
 
   if (!mounted) return null;
 
-  const handleContinue = () => {
-    if (name.trim().length === 0) return;
-    localStorage.setItem('dp-name', name.trim());
-    router.push('/onboarding/type');
-  };
+ const handleContinue = async () => {
+  if (name.trim().length === 0) return;
+  const trimmed = name.trim();
+  localStorage.setItem('dp-name', trimmed);
+
+  // Update Supabase immediately when name is set
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user) {
+    await supabase.from('users').upsert({
+      id: session.user.id,
+      email: session.user.email,
+      name: trimmed,
+    }, { onConflict: 'id' });
+  }
+
+  router.push('/onboarding/type');
+};
 
   return (
     <main data-theme={dark ? 'dark' : 'light'} className="landing">

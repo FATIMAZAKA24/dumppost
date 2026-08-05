@@ -92,18 +92,19 @@ export default function Questions() {
       setInput('');
       router.push('/loading');
 
-      supabase.auth.getSession().then(({ data: { session } }) => {
+      supabase.auth.getSession().then(async ({ data: { session } }) => {
         if (session?.user) {
           const savedName = localStorage.getItem('dp-name') || '';
           const savedType = localStorage.getItem('dp-type') || 'employed';
           localStorage.setItem('dp-user-id', session.user.id);
 
-          supabase.from('users').upsert({
+          // Update users table and wait for it
+          await supabase.from('users').upsert({
             id: session.user.id,
             email: session.user.email,
             name: savedName,
             user_type: savedType,
-          });
+          }, { onConflict: 'id' });
 
           fetch('/api/extract-profile', {
             method: 'POST',
