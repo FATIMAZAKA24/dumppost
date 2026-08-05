@@ -96,16 +96,15 @@ Return this exact JSON structure (fill in what you can infer, use null for anyth
     const signals = JSON.parse(clean);
 
     // Store BOTH the extracted signals AND the raw onboarding answers + questions
-    await supabaseAdmin
-      .from('user_profiles')
-      .upsert({
-        user_id: userId,
-        ...signals,
-        onboarding_answers: answers,           // raw answer strings
-        onboarding_questions: questions,        // so we know which question each answer belongs to
-        user_type: userType,
-      })
-      .eq('user_id', userId);
+      await supabaseAdmin
+    .from('user_profiles')
+    .upsert({
+      user_id: userId,
+      ...signals,
+      onboarding_answers: answers,
+      onboarding_questions: questions,
+      user_type: userType,
+    }, { onConflict: 'user_id' });
 
     return NextResponse.json({ success: true, signals });
 
