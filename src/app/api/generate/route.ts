@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       .eq('user_response', 'rejected')
       .not('rejection_reason', 'is', null)
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(10);
 
     const { data: edits } = await supabaseAdmin
       .from('interactions')
@@ -38,102 +38,107 @@ export async function POST(req: NextRequest) {
       .eq('user_response', 'edited')
       .not('edits_made', 'is', null)
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(5);
 
-    const rejectionContext = rejections?.length
-      ? rejections.map((r: {rejection_reason: string}) => `- ${r.rejection_reason}`).join('\n')
-      : null;
-
-    const editContext = edits?.length
-      ? edits.map((e: {generated_output: string; edits_made: string}, i: number) =>
-          `Edit ${i + 1}:\nOriginal: ${e.generated_output?.slice(0, 200)}...\nEdited to: ${e.edits_made?.slice(0, 200)}...`
+    // ── Build raw onboarding Q&A block ──
+    // This is the user's actual voice — their words, not labels extracted from them
+    const rawAnswers: string[] = profile?.onboarding_answers || [];
+    const rawQuestions: string[] = profile?.onboarding_questions || [];
+    const onboardingBlock = rawAnswers.length
+      ? rawAnswers.map((a: string, i: number) =>
+          `Q: ${rawQuestions[i] || `Question ${i + 1}`}\nA: ${a}`
         ).join('\n\n')
       : null;
 
-    const profileContext = profile ? `
-Domain: ${profile.domain || 'unknown'}
-Role: ${profile.role || 'unknown'}
-Project type: ${profile.project_type || 'unknown'}
-Baseline confidence: ${profile.baseline_confidence || 'unknown'}
-Enthusiasm level: ${profile.enthusiasm_level || 'unknown'}
-Technical depth: ${profile.technical_depth || 'unknown'}
-Explanation style: ${profile.explanation_style || 'unknown'}
-Emotional honesty: ${profile.emotional_honesty || 'unknown'}
-Problem solving style: ${profile.problem_solving_style || 'unknown'}
-Vulnerability level: ${profile.vulnerability_level || 'unknown'}
-Audience: ${profile.audience || 'unknown'}
-Posting goal: ${profile.posting_goal || 'unknown'}
-Self awareness: ${profile.self_awareness || 'unknown'}
-Desired perception: ${profile.desired_perception || 'unknown'}
-Passion areas: ${profile.passion_areas || 'unknown'}
-Sentence rhythm: ${profile.sentence_rhythm || 'unknown'}
-Structure preference: ${profile.structure_preference || 'unknown'}
-Real vocabulary: ${profile.real_vocabulary || 'unknown'}
-Explicit preferences: ${profile.explicit_preferences || 'none'}
-AI tool relationship: ${profile.ai_tool_relationship || 'unknown'}
-Personality type: ${profile.personality_type || 'unknown'}` : 'No profile available.';
+    // ── Build edit signal block ──
+    const editBlock = edits?.length
+      ? edits.map((e: { generated_output: string; edits_made: string }, i: number) =>
+          `Edit ${i + 1}:\nOriginal: ${e.generated_output?.slice(0, 300)}\nChanged to: ${e.edits_made?.slice(0, 300)}`
+        ).join('\n\n---\n\n')
+      : null;
 
-    const userTypeLabel =
-      user?.user_type === 'student' ? 'Student' :
-      user?.user_type === 'jobseeker' ? 'Job Seeker (actively looking for opportunities)' :
-      'Working Professional';
+    // ── Build rejection block ──
+    const rejectionBlock = rejections?.length
+      ? rejections.map((r: { rejection_reason: string }) => `- ${r.rejection_reason}`).join('\n')
+      : null;
 
+    // ── User type context ──
     const userTypeGuidance =
-      user?.user_type === 'jobseeker' ?
-      `This user is actively job seeking. Their posts should subtly position them as a strong candidate — highlight skills, projects, problem-solving ability, and growth mindset. Avoid desperation or "open to work" clichés. Make them sound accomplished and intentional, not needy.` :
-      user?.user_type === 'student' ?
-      `This user is a student building their professional presence early. Their posts should feel authentic, curious, and growth-oriented — not trying to sound more senior than they are.` :
-      `This user is a working professional. Their posts should reflect real work experience, domain expertise, and genuine insight from the field.`;
+      user?.user_type === 'jobseeker'
+        ? `This person is actively job seeking. Posts should position them as skilled and intentional — not desperate. Highlight competence, curiosity, growth. Never mention "open to work".`
+        : user?.user_type === 'student'
+        ? `This person is a student. Posts should feel genuinely curious and growth-oriented — not trying to sound more senior than they are.`
+        : `This person is a working professional. Posts should reflect real experience and genuine insight from the field.`;
 
-    const systemPrompt = `You are DumpPost — an AI that converts raw, unfiltered thoughts into authentic, personalised LinkedIn posts.
+    // ── Extracted signal summary (secondary, not primary) ──
+    const signalSummary = profile ? [
+      profile.domain && `Field: ${profile.domain}`,
+      profile.role && `Role: ${profile.role}`,
+      profile.sentence_rhythm && `Sentence rhythm: ${profile.sentence_rhythm}`,
+      profile.structure_preference && `Structure preference: ${profile.structure_preference}`,
+      profile.technical_depth && `Technical depth: ${profile.technical_depth}`,
+      profile.emotional_honesty && `Emotional honesty: ${profile.emotional_honesty}`,
+      profile.personality_type && `Personality: ${profile.personality_type}`,
+      profile.real_vocabulary && `Vocabulary they use: ${profile.real_vocabulary}`,
+      profile.posting_goal && `Posting goal: ${profile.posting_goal}`,
+      profile.audience && `Target audience: ${profile.audience}`,
+      profile.explicit_preferences && `Explicit preferences: ${profile.explicit_preferences}`,
+    ].filter(Boolean).join('\n') : null;
 
-Your core job: make the post sound exactly like THIS person, not a generic LinkedIn voice.
+    const systemPrompt = `You are DumpPost. You turn raw, unfiltered thoughts into LinkedIn posts that sound exactly like the person who wrote them — not like AI, not like a LinkedIn template.
+
+Your single most important job: preserve their voice. If they write casually, write casually. If they're uncertain, stay uncertain. If they're technical and dry, stay technical and dry. Never polish away their personality.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-LAYER 1 — USER VOICE PROFILE
+WHO THIS PERSON IS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Name: ${user?.name || 'Unknown'}
-Type: ${userTypeLabel}
-
 ${userTypeGuidance}
-
-${profileContext}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-LAYER 2 — VOICE CORRECTIONS (EDITS MADE BY USER)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${editContext ? `These are posts the user edited — the difference between original and edited version is your strongest voice signal. Learn from what they changed:\n\n${editContext}` : 'No edits yet.'}
+${signalSummary ? `\nExtracted signals (use for calibration, not as rules):\n${signalSummary}` : ''}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-LAYER 3 — WHAT TO AVOID (REJECTION REASONS)
+THEIR ACTUAL WORDS (most important voice signal)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${rejectionContext ? `User has rejected posts for these reasons. Do NOT repeat these:\n${rejectionContext}` : 'No rejections yet.'}
+${onboardingBlock
+  ? `These are the user's own answers in their own words. Study how they write — their sentence length, word choices, level of formality, how much they hedge vs how confident they sound. This is your voice reference:\n\n${onboardingBlock}`
+  : 'No onboarding answers available yet.'}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-LAYER 4 — DUMPPOST RULES
+WHAT THEY'VE CORRECTED (strongest signal if available)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- Write in first person as the user — their voice, their words
-- Hook first — first line must stop the scroll
-- Never start with "I" as the opening word
-- Never use "Excited to share", "Humbled", "Game-changer", "Thrilled"
-- No corporate fluff — match their natural style from profile
-- No bullet points unless their sentence_rhythm and structure_preference suggest it
-- Output length proportional to input richness
-- Structure: hook → insight or story → takeaway → optional question
-- ALWAYS end with 3–5 relevant hashtags on a new line. No exceptions.
-- Output ONLY the LinkedIn post — no preamble, no explanation.
-- The dump is the source of truth for WHAT the user wants to say. Profile context shapes HOW it sounds, not WHAT it says.
-- Never invent specific projects, achievements or details that aren't in the dump. Only use profile context to inform tone, vocabulary and style.
-- If the dump expresses uncertainty or exploration, the post should reflect that — don't turn a "figuring things out" dump into a confident project showcase.
+${editBlock
+  ? `The user has edited previous posts. The gap between original and edited version tells you exactly what they don't like. Learn from every change:\n\n${editBlock}`
+  : 'No edits yet — rely on onboarding answers for voice calibration.'}
 
-${previousOutput ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-LAYER 5 — PREVIOUS VERSION (REFINE THIS, DON'T REWRITE)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-The user rejected this version. Keep what worked, fix what didn't based on their rejection reason:
+WHAT TO AVOID
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${rejectionBlock
+  ? `They've rejected posts for these reasons — do not repeat:\n${rejectionBlock}`
+  : 'No rejections yet.'}
 
-${previousOutput}` : ''}`;
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WRITING RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- First line must earn attention — but make it feel like them, not a copywriting hook
+- Never open with "I"
+- Never use: "Excited to share", "Humbled", "Game-changer", "Thrilled", "Delighted"
+- No corporate filler — cut anything that sounds like a press release
+- Stay true to the dump: if they're figuring something out, the post should reflect that uncertainty, not fake confidence
+- Never invent details not in the dump. Use profile context only to shape tone and style
+- Length proportional to input — a short dump should produce a short post
+- End with 3–5 relevant hashtags on a new line
+- Output ONLY the post. No intro, no explanation, no "Here's your post:"
 
-    // ── Groq API call ──
+${previousOutput
+  ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PREVIOUS VERSION — IMPROVE, DON'T REWRITE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The user wasn't happy with this. Keep what worked, fix what didn't:\n\n${previousOutput}`
+  : ''}`;
+
+    const userMessage = `Here's what's on my mind — turn this into a LinkedIn post in my voice:\n\n${dump}`;
+
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -144,22 +149,17 @@ ${previousOutput}` : ''}`;
         model: 'llama-3.3-70b-versatile',
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `My raw thoughts:\n\n${dump}` },
+          { role: 'user', content: userMessage },
         ],
-        temperature: 0.75,
+        temperature: 0.92,
         max_tokens: 900,
       }),
     });
 
-    // Log the raw status + body so we can see exactly what Groq returns
     if (!groqRes.ok) {
       const errText = await groqRes.text();
-      console.error('Groq error status:', groqRes.status);
-      console.error('Groq error body:', errText);
-      return NextResponse.json(
-        { error: `Groq API error ${groqRes.status}: ${errText}` },
-        { status: 500 }
-      );
+      console.error('Groq error:', groqRes.status, errText);
+      return NextResponse.json({ error: `Groq error ${groqRes.status}` }, { status: 500 });
     }
 
     const data = await groqRes.json();

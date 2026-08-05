@@ -72,12 +72,12 @@ Return this exact JSON structure (fill in what you can infer, use null for anyth
   "posting_goal": "what they want to achieve on LinkedIn",
   "desired_perception": "how they want to be perceived",
   "passion_areas": "what genuinely excites them",
-  "sentence_rhythm": "short-punchy/long-flowing/mixed",  
+  "sentence_rhythm": "short-punchy/long-flowing/mixed",
   "structure_preference": "how they naturally structure thoughts",
   "real_vocabulary": "key words and phrases they actually use",
   "explicit_preferences": "any specific things they mentioned wanting",
-  "personality_type": "analytical/storyteller/straight-shooter/reflective/etc"
-  "self_awareness": "how self-aware they seem about their own work and communication style", 
+  "personality_type": "analytical/storyteller/straight-shooter/reflective/etc",
+  "self_awareness": "how self-aware they seem about their own work and communication style",
   "ai_tool_relationship": "how comfortable they seem with AI tools based on their answers"
 }`
           }
@@ -92,15 +92,20 @@ Return this exact JSON structure (fill in what you can infer, use null for anyth
 
     if (!raw) return NextResponse.json({ error: 'No extraction' }, { status: 500 });
 
-    // Parse the JSON
     const clean = raw.replace(/```json|```/g, '').trim();
     const signals = JSON.parse(clean);
 
-    // Save to user_profiles
+    // Store BOTH the extracted signals AND the raw onboarding answers + questions
     await supabaseAdmin
-    .from('user_profiles')
-    .upsert({ user_id: userId, ...signals })
-    .eq('user_id', userId);
+      .from('user_profiles')
+      .upsert({
+        user_id: userId,
+        ...signals,
+        onboarding_answers: answers,           // raw answer strings
+        onboarding_questions: questions,        // so we know which question each answer belongs to
+        user_type: userType,
+      })
+      .eq('user_id', userId);
 
     return NextResponse.json({ success: true, signals });
 
