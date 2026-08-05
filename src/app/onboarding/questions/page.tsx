@@ -5,30 +5,30 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 const employedQuestions = [
-  "What are you working on right now?",
-  "What's the most interesting part of it?",
-  "What's been giving you the most trouble with it?",
-  "Who do you want reading your posts — and what do you want them to think when they do?",
-  "What part of your work do you actually enjoy? Feel free to ramble a bit.",
-  "Anything specific you want DumpPost to keep in mind? Or we can just learn as we go.",
+  "What are you working on right now? Explain it like you're texting a friend — don't make it sound impressive.",
+  "What's the most interesting thing you've figured out recently? Could be tiny.",
+  "What's been annoying you or slowing you down lately?",
+  "What's an opinion you have about your field that people might push back on?",
+  "What do you want people to think when they read your posts? Be honest.",
+  "Write me two or three sentences the way you'd normally write — could be about anything at all.",
 ];
 
 const studentQuestions = [
-  "What are you currently studying or learning?",
-  "What's the most interesting thing you've come across recently in your field?",
-  "What's something you've been trying to figure out or struggling with?",
-  "Who do you want reading your posts — and what do you want them to think when they do?",
-  "What part of your field do you actually enjoy? Feel free to ramble a bit.",
-  "Anything specific you want DumpPost to keep in mind? Or we can just learn as we go.",
+  "What are you learning right now? Explain it like you're texting a friend.",
+  "What's something in your field that surprised or confused you recently?",
+  "What's been the hardest part of where you are right now?",
+  "What's an opinion you have that people in your field might disagree with?",
+  "Who do you want reading your posts and what should they think?",
+  "Write me two or three sentences the way you'd normally write — could be about anything at all.",
 ];
 
 const jobseekerQuestions = [
-  "What kind of role or field are you targeting?",
-  "What's the most relevant thing you've worked on or built — even if it was a project, internship, or side thing?",
-  "What's been the hardest part of your job search so far?",
-  "Who do you want reading your posts — recruiters, hiring managers, people in your field?",
-  "What do you want people to think about you when they read your posts?",
-  "Anything specific you want DumpPost to keep in mind? Or we can just learn as we go.",
+  "What kind of work do you actually want to be doing? Not the polished answer — the real one.",
+  "What's the most interesting thing you've built or worked on? Explain it simply.",
+  "What's been the hardest part of your search so far?",
+  "What's something about your field that people misunderstand?",
+  "What do you want people to think when they read your posts?",
+  "Write me two or three sentences the way you'd normally write — could be about anything at all.",
 ];
 
 export default function Questions() {

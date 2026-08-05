@@ -6,107 +6,197 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+async function groq(messages: { role: string; content: string }[], temperature = 0.3) {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages,
+      temperature,
+      max_tokens: 1000,
+    }),
+  });
+  const data = await res.json();
+  const raw = data.choices?.[0]?.message?.content?.trim() || '';
+  return raw.replace(/```json|```/g, '').trim();
+}
+
+function parseJSON(raw: string, fallback: object) {
+  try { return JSON.parse(raw); }
+  catch { return fallback; }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { userId, answers, userType } = await req.json();
 
     const employedQuestions = [
-      "What are you working on right now?",
-      "What's the most interesting part of it?",
-      "What's been giving you the most trouble with it?",
-      "Who do you want reading your posts — and what do you want them to think when they do?",
-      "What part of your work do you actually enjoy? Feel free to ramble a bit.",
-      "Anything specific you want DumpPost to keep in mind? Or we can just learn as we go.",
+      "What are you working on right now? Explain it like you're texting a friend — don't make it sound impressive.",
+      "What's the most interesting thing you've figured out recently? Could be tiny.",
+      "What's been annoying you or slowing you down lately?",
+      "What's an opinion you have about your field that people might push back on?",
+      "What do you want people to think when they read your posts? Be honest.",
+      "Write me two or three sentences the way you'd normally write — could be about anything at all.",
     ];
 
     const studentQuestions = [
-      "What are you currently studying or learning?",
-      "What's the most interesting thing you've come across recently in your field?",
-      "What's something you've been trying to figure out or struggling with?",
-      "Who do you want reading your posts — and what do you want them to think when they do?",
-      "What part of your field do you actually enjoy? Feel free to ramble a bit.",
-      "Anything specific you want DumpPost to keep in mind? Or we can just learn as we go.",
+      "What are you learning right now? Explain it like you're texting a friend.",
+      "What's something in your field that surprised or confused you recently?",
+      "What's been the hardest part of where you are right now?",
+      "What's an opinion you have that people in your field might disagree with?",
+      "Who do you want reading your posts and what should they think?",
+      "Write me two or three sentences the way you'd normally write — could be about anything at all.",
     ];
 
-    const questions = userType === 'student' ? studentQuestions : employedQuestions;
-    const conversation = answers.map((a: string, i: number) => `Q: ${questions[i]}\nA: ${a}`).join('\n\n');
+    const jobseekerQuestions = [
+      "What kind of work do you actually want to be doing? Not the polished answer — the real one.",
+      "What's the most interesting thing you've built or worked on? Explain it simply.",
+      "What's been the hardest part of your search so far?",
+      "What's something about your field that people misunderstand?",
+      "What do you want people to think when they read your posts?",
+      "Write me two or three sentences the way you'd normally write — could be about anything at all.",
+    ];
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a voice profiling system. Extract signals from a user's onboarding answers and return ONLY a JSON object with no preamble, no markdown, no backticks. Just raw JSON.`
-          },
-          {
-            role: 'user',
-            content: `Extract the following signals from these onboarding answers and return as JSON:
+    const questions =
+      userType === 'student' ? studentQuestions :
+      userType === 'jobseeker' ? jobseekerQuestions :
+      employedQuestions;
+
+    const conversation = answers
+      .map((a: string, i: number) => `Q: ${questions[i]}\nA: ${a}`)
+      .join('\n\n');
+
+    // ── Run both extractions in parallel ──
+    const [voiceRaw, linkedinRaw] = await Promise.all([
+
+      // Call 1 — Voice DNA + Thinking DNA
+      groq([
+        {
+          role: 'system',
+          content: `You are a writing analyst. Extract observable writing behavior from a person's natural writing samples. Return ONLY raw JSON — no markdown, no backticks, no explanation.`,
+        },
+        {
+          role: 'user',
+          content: `Analyze these onboarding answers and extract how this person actually writes.
+
+Pay special attention to question 6 — it is a pure writing sample with no topic constraint, giving the clearest voice signal.
+
+WRITING SAMPLES:
+${conversation}
+
+CRITICAL: You are extracting observable behavior, not personality. Do not infer confidence, enthusiasm, or personality type. Only extract things you can directly observe in the text.
+
+Return this exact JSON:
+{
+  "voice_dna": {
+    "sentence_length": "short | medium | long",
+    "paragraph_style": "single-line | two-line | long-blocks | mixed",
+    "favorite_openings": ["up to 4 actual phrases they used to start sentences"],
+    "favorite_transitions": ["up to 4 actual transition words/phrases they used"],
+    "hedging_words": ["words like 'kind of', 'maybe', 'I think' they actually used"],
+    "confidence_markers": ["words like 'definitely', 'clearly' they actually used — empty array if none"],
+    "punctuation_style": "minimal | heavy | dash-heavy | ellipsis-heavy",
+    "emoji_usage": "never | rare | moderate | frequent",
+    "capitalization": "normal | all-lowercase | emphatic-caps",
+    "formality": "very-low | low | medium | high",
+    "humor_style": "none | dry | self-deprecating | warm",
+    "favorite_words": ["up to 6 distinctive words they actually used"],
+    "swearing": "never | rare | moderate",
+    "question_frequency": "never | rare | moderate | frequent",
+    "list_usage": "never | rare | moderate | frequent",
+    "intensity": "understated | balanced | expressive",
+    "vocabulary_complexity": "simple | mixed | complex",
+    "contractions_usage": "always | sometimes | never"
+  },
+  "thinking_dna": {
+    "primary_pattern": "one of: observation→analysis→question | story→mistake→lesson | opinion→evidence→conclusion | experience→reflection→advice | question→exploration→open-end",
+    "starts_with": "observation | story | opinion | question | fact | personal-experience",
+    "develops_into": "analysis | lesson | evidence | exploration | reflection",
+    "ends_with": "question | conclusion | advice | open-thought | call-to-action",
+    "thinking_style": "linear | exploratory | contrarian | reflective | analytical",
+    "abstraction_level": "concrete-examples | mixed | abstract-principles"
+  }
+}`,
+        },
+      ]),
+
+      // Call 2 — LinkedIn DNA
+      groq([
+        {
+          role: 'system',
+          content: `You are a LinkedIn content strategist. Extract someone's LinkedIn content preferences from their onboarding answers. Return ONLY raw JSON — no markdown, no backticks, no explanation.`,
+        },
+        {
+          role: 'user',
+          content: `Extract this person's LinkedIn content strategy from their onboarding answers.
 
 ONBOARDING:
 ${conversation}
 
-IMPORTANT INFERENCE NOTE:
-Onboarding answers are conversational by nature — people naturally 
-write longer when answering questions directly. Do not mistake 
-conversational answer length for the user's actual writing style.
-
-Return this exact JSON structure (fill in what you can infer, use null for anything unclear):
+Return this exact JSON:
 {
-  "domain": "their field/industry",
-  "role": "their job title or role",
-  "project_type": "type of work they do",
-  "baseline_confidence": "high/medium/low based on how they talk about their work",
-  "enthusiasm_level": "high/medium/low based on excitement in answers",
-  "technical_depth": "high/medium/low based on vocabulary used",
-  "explanation_style": "how they explain things - simple/technical/story-driven/etc",
-  "emotional_honesty": "high/medium/low - how vulnerable they are",
-  "problem_solving_style": "how they approach problems",
-  "vulnerability_level": "high/medium/low",
-  "audience": "who they want reading their posts",
-  "posting_goal": "what they want to achieve on LinkedIn",
-  "desired_perception": "how they want to be perceived",
-  "passion_areas": "what genuinely excites them",
-  "sentence_rhythm": "short-punchy/long-flowing/mixed",
-  "structure_preference": "how they naturally structure thoughts",
-  "real_vocabulary": "key words and phrases they actually use",
-  "explicit_preferences": "any specific things they mentioned wanting",
-  "personality_type": "analytical/storyteller/straight-shooter/reflective/etc",
-  "self_awareness": "how self-aware they seem about their own work and communication style",
-  "ai_tool_relationship": "how comfortable they seem with AI tools based on their answers"
-}`
-          }
-        ],
-        temperature: 0.3,
-        max_tokens: 800,
-      }),
+  "linkedin_dna": {
+    "preferred_post_types": ["story", "reflection", "opinion", "lesson", "tutorial", "observation", "announcement", "behind-the-scenes"],
+    "hook_style": "curiosity | bold-statement | question | number | story-open | contradiction",
+    "cta_style": "question | none | soft-cta | direct-ask",
+    "hashtag_usage": "none | minimal | moderate | heavy",
+    "hashtag_style": "broad | niche | mixed",
+    "preferred_length": "short | medium | long",
+    "uses_line_breaks": true,
+    "uses_bullet_points": false,
+    "uses_bold": false,
+    "audience": "who they want reading their posts",
+    "posting_goal": "what they want to achieve",
+    "desired_perception": "how they want to be seen"
+  }
+}`,
+        },
+      ]),
+    ]);
+
+    const voiceData = parseJSON(voiceRaw, { voice_dna: {}, thinking_dna: {} });
+    const linkedinData = parseJSON(linkedinRaw, { linkedin_dna: {} });
+
+    // ── Save everything to user_profiles ──
+    const { error } = await supabaseAdmin
+      .from('user_profiles')
+      .upsert({
+        user_id: userId,
+        // New V2 JSON columns
+        voice_dna: voiceData.voice_dna || {},
+        thinking_dna: voiceData.thinking_dna || {},
+        linkedin_dna: linkedinData.linkedin_dna || {},
+        editing_rules: [],
+        avoid_rules: [],
+        memory: {
+          recent_topics: [],
+          recent_hooks: [],
+          recent_hashtags: [],
+          recent_post_types: [],
+          recent_openings: [],
+          post_count: 0,
+        },
+        // Keep raw answers for generate prompt
+        onboarding_answers: answers,
+        onboarding_questions: questions,
+        user_type: userType,
+      }, { onConflict: 'user_id' });
+
+    if (error) {
+      console.error('Supabase upsert error:', error);
+      return NextResponse.json({ error: 'Failed to save profile' }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      voice_dna: voiceData.voice_dna,
+      thinking_dna: voiceData.thinking_dna,
+      linkedin_dna: linkedinData.linkedin_dna,
     });
-
-    const data = await response.json();
-    const raw = data.choices?.[0]?.message?.content?.trim();
-
-    if (!raw) return NextResponse.json({ error: 'No extraction' }, { status: 500 });
-
-    const clean = raw.replace(/```json|```/g, '').trim();
-    const signals = JSON.parse(clean);
-
-    // Store BOTH the extracted signals AND the raw onboarding answers + questions
-      await supabaseAdmin
-    .from('user_profiles')
-    .upsert({
-      user_id: userId,
-      ...signals,
-      onboarding_answers: answers,
-      onboarding_questions: questions,
-      user_type: userType,
-    }, { onConflict: 'user_id' });
-
-    return NextResponse.json({ success: true, signals });
 
   } catch (err) {
     console.error('Extract profile error:', err);
