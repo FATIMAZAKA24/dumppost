@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
 export default function UserType() {
   const [selected, setSelected] = useState<'employed' | 'student' | 'jobseeker' | null>(null);
@@ -28,9 +29,19 @@ export default function UserType() {
 
   if (!mounted) return null;
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!selected) return;
     localStorage.setItem('dp-type', selected);
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      await supabase.from('users').upsert({
+        id: session.user.id,
+        email: session.user.email,
+        user_type: selected,
+      }, { onConflict: 'id' });
+    }
+
     router.push('/onboarding/preload');
   };
 
