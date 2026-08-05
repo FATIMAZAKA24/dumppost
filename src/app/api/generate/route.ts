@@ -6,197 +6,360 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+async function groqCall(
+  messages: { role: string; content: string }[],
+  temperature = 0.65,
+  max_tokens = 900
+) {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages,
+      temperature,
+      max_tokens,
+    }),
+  });
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content?.trim() || '';
+}
+
+// ── Anti-AI word filter ──
+const AI_WORDS = [
+  'journey', 'delve', 'landscape', 'leverage', 'foster',
+  'game-changing', 'game changer', 'more than ever', "in today's world",
+  'transformative', "it's worth noting", "it's important to remember",
+  'navigating', 'groundbreaking', 'revolutionary', 'seamless', 'robust',
+  'cutting-edge', 'excited to share', 'humbled', 'thrilled', 'delighted',
+  'powerful tool', 'unlock', 'unleash', 'supercharge', 'skyrocket',
+  'dive deep', 'deep dive', 'at the end of the day', 'move the needle',
+  'circle back', 'synergy', 'impactful', 'actionable', 'holistic',
+];
+
+function applyAntiAIFilter(text: string): string {
+  let result = text;
+  for (const word of AI_WORDS) {
+    const regex = new RegExp(`\\b${word}\\b`, 'gi');
+    if (regex.test(result)) {
+      // Flag it — authenticity checker will handle rewrites
+      result = result.replace(regex, `[FLAG:${word}]`);
+    }
+  }
+  return result;
+}
+
+function hasFlags(text: string): boolean {
+  return text.includes('[FLAG:');
+}
+
+function stripFlags(text: string): string {
+  return text.replace(/\[FLAG:[^\]]+\]/gi, (match) => {
+    // Remove the flag wrapper, keep the word — authenticity checker rewrites it
+    return match.replace(/\[FLAG:([^\]]+)\]/gi, '$1');
+  });
+}
+
+// ── Post-type classifier ──
+async function classifyDump(dump: string) {
+  const raw = await groqCall([
+    {
+      role: 'system',
+      content: `You are a content classifier. Return ONLY raw JSON — no markdown, no backticks.`,
+    },
+    {
+      role: 'user',
+      content: `Classify this raw thought dump:
+
+"${dump}"
+
+Post types: story | lesson | opinion | reflection | tutorial | observation | announcement | behind-the-scenes
+
+Return:
+{
+  "post_type": "one of the types above",
+  "core_message": "one sentence — what is the person actually trying to say?",
+  "core_emotion": "one word — what emotion is underneath this dump?",
+  "suggested_structure": "observation→analysis→question | story→conflict→lesson | opinion→evidence→conclusion | experience→reflection→advice | question→exploration→open-end",
+  "hook_angle": "one sentence — what would make someone stop scrolling for this specific post?"
+}`,
+    },
+  ], 0.2, 300);
+
+  try {
+    return JSON.parse(raw.replace(/```json|```/g, '').trim());
+  } catch {
+    return {
+      post_type: 'observation',
+      core_message: dump.slice(0, 100),
+      core_emotion: 'neutral',
+      suggested_structure: 'observation→analysis→question',
+      hook_angle: null,
+    };
+  }
+}
+
+// ── Build voice DNA block for prompt ──
+function buildVoiceBlock(voice: Record<string, unknown>): string {
+  if (!voice || Object.keys(voice).length === 0) return 'No voice data yet.';
+  return [
+    voice.sentence_length && `Sentence length: ${voice.sentence_length}`,
+    voice.paragraph_style && `Paragraph style: ${voice.paragraph_style}`,
+    voice.formality && `Formality: ${voice.formality}`,
+    voice.punctuation_style && `Punctuation: ${voice.punctuation_style}`,
+    voice.emoji_usage && `Emoji usage: ${voice.emoji_usage}`,
+    voice.capitalization && `Capitalization: ${voice.capitalization}`,
+    voice.humor_style && `Humor: ${voice.humor_style}`,
+    voice.intensity && `Intensity: ${voice.intensity}`,
+    voice.contractions_usage && `Contractions: ${voice.contractions_usage}`,
+    voice.vocabulary_complexity && `Vocabulary: ${voice.vocabulary_complexity}`,
+    voice.swearing && `Swearing: ${voice.swearing}`,
+    voice.question_frequency && `Questions: ${voice.question_frequency}`,
+    voice.list_usage && `Lists: ${voice.list_usage}`,
+    Array.isArray(voice.favorite_openings) && voice.favorite_openings.length > 0 &&
+      `Favorite openings: ${(voice.favorite_openings as string[]).join(', ')}`,
+    Array.isArray(voice.favorite_transitions) && voice.favorite_transitions.length > 0 &&
+      `Favorite transitions: ${(voice.favorite_transitions as string[]).join(', ')}`,
+    Array.isArray(voice.favorite_words) && voice.favorite_words.length > 0 &&
+      `Favorite words: ${(voice.favorite_words as string[]).join(', ')}`,
+    Array.isArray(voice.hedging_words) && voice.hedging_words.length > 0 &&
+      `Hedging words they use: ${(voice.hedging_words as string[]).join(', ')}`,
+  ].filter(Boolean).join('\n');
+}
+
+// ── Build thinking DNA block for prompt ──
+function buildThinkingBlock(thinking: Record<string, unknown>): string {
+  if (!thinking || Object.keys(thinking).length === 0) return 'No thinking pattern data yet.';
+  return [
+    thinking.primary_pattern && `Thinking pattern: ${thinking.primary_pattern}`,
+    thinking.thinking_style && `Thinking style: ${thinking.thinking_style}`,
+    thinking.abstraction_level && `Abstraction level: ${thinking.abstraction_level}`,
+    thinking.starts_with && `Posts start with: ${thinking.starts_with}`,
+    thinking.develops_into && `Posts develop into: ${thinking.develops_into}`,
+    thinking.ends_with && `Posts end with: ${thinking.ends_with}`,
+  ].filter(Boolean).join('\n');
+}
+
+// ── Build LinkedIn DNA block for prompt ──
+function buildLinkedInBlock(linkedin: Record<string, unknown>): string {
+  if (!linkedin || Object.keys(linkedin).length === 0) return 'No LinkedIn preferences yet.';
+  return [
+    Array.isArray(linkedin.preferred_post_types) && linkedin.preferred_post_types.length > 0 &&
+      `Preferred post types: ${(linkedin.preferred_post_types as string[]).join(', ')}`,
+    linkedin.hook_style && `Hook style: ${linkedin.hook_style}`,
+    linkedin.cta_style && `CTA style: ${linkedin.cta_style}`,
+    linkedin.hashtag_usage && `Hashtag usage: ${linkedin.hashtag_usage}`,
+    linkedin.preferred_length && `Preferred length: ${linkedin.preferred_length}`,
+    linkedin.uses_line_breaks !== undefined && `Uses line breaks: ${linkedin.uses_line_breaks}`,
+    linkedin.uses_bullet_points !== undefined && `Uses bullet points: ${linkedin.uses_bullet_points}`,
+    linkedin.audience && `Target audience: ${linkedin.audience}`,
+    linkedin.posting_goal && `Posting goal: ${linkedin.posting_goal}`,
+    linkedin.desired_perception && `Desired perception: ${linkedin.desired_perception}`,
+  ].filter(Boolean).join('\n');
+}
+
+// ── Build memory block for prompt ──
+function buildMemoryBlock(memory: Record<string, unknown>): string {
+  if (!memory || Object.keys(memory).length === 0) return '';
+  const lines = [
+    Array.isArray(memory.recent_topics) && memory.recent_topics.length > 0 &&
+      `Recent topics (avoid repeating): ${(memory.recent_topics as string[]).slice(0, 5).join(', ')}`,
+    Array.isArray(memory.recent_hooks) && memory.recent_hooks.length > 0 &&
+      `Recent hooks (avoid repeating): ${(memory.recent_hooks as string[]).slice(0, 3).join(', ')}`,
+    Array.isArray(memory.recent_hashtags) && memory.recent_hashtags.length > 0 &&
+      `Recent hashtags (vary these): ${(memory.recent_hashtags as string[]).slice(0, 5).join(', ')}`,
+    Array.isArray(memory.recent_post_types) && memory.recent_post_types.length > 0 &&
+      `Recent post types: ${(memory.recent_post_types as string[]).slice(0, 3).join(', ')}`,
+  ].filter(Boolean);
+
+  return lines.length > 0 ? lines.join('\n') : '';
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { dump, userId, previousOutput } = await req.json();
 
-    const { data: profile } = await supabaseAdmin
-      .from('user_profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
+    // ── Fetch all user data in parallel ──
+    const [profileRes, userRes, rejectionsRes, editsRes] = await Promise.all([
+      supabaseAdmin.from('user_profiles').select('*').eq('user_id', userId).single(),
+      supabaseAdmin.from('users').select('name, user_type').eq('id', userId).single(),
+      supabaseAdmin
+        .from('interactions')
+        .select('rejection_reason')
+        .eq('user_id', userId)
+        .eq('user_response', 'rejected')
+        .not('rejection_reason', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(10),
+      supabaseAdmin
+        .from('interactions')
+        .select('generated_output, edits_made')
+        .eq('user_id', userId)
+        .eq('user_response', 'edited')
+        .not('edits_made', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(5),
+    ]);
 
-    const { data: user } = await supabaseAdmin
-      .from('users')
-      .select('name, user_type')
-      .eq('id', userId)
-      .single();
+    const profile = profileRes.data;
+    const user = userRes.data;
+    const rejections = rejectionsRes.data || [];
+    const edits = editsRes.data || [];
 
-    const { data: rejections } = await supabaseAdmin
-      .from('interactions')
-      .select('rejection_reason')
-      .eq('user_id', userId)
-      .eq('user_response', 'rejected')
-      .not('rejection_reason', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(10);
+    // ── Classify dump and fetch profile data in parallel ──
+    const classification = await classifyDump(dump);
 
-    const { data: edits } = await supabaseAdmin
-      .from('interactions')
-      .select('generated_output, edits_made')
-      .eq('user_id', userId)
-      .eq('user_response', 'edited')
-      .not('edits_made', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(5);
+    // ── Extract profile sections ──
+    const voiceDNA = (profile?.voice_dna as Record<string, unknown>) || {};
+    const thinkingDNA = (profile?.thinking_dna as Record<string, unknown>) || {};
+    const linkedinDNA = (profile?.linkedin_dna as Record<string, unknown>) || {};
+    const editingRules: string[] = profile?.editing_rules || [];
+    const avoidRules: string[] = profile?.avoid_rules || [];
+    const memory = (profile?.memory as Record<string, unknown>) || {};
 
-    // ── Raw onboarding Q&A ──
+    // ── Raw onboarding answers ──
     const rawAnswers: string[] = profile?.onboarding_answers || [];
     const rawQuestions: string[] = profile?.onboarding_questions || [];
     const onboardingBlock = rawAnswers.length
-      ? rawAnswers.map((a: string, i: number) =>
-          `Q: ${rawQuestions[i] || `Question ${i + 1}`}\nA: ${a}`
-        ).join('\n\n')
+      ? rawAnswers.map((a, i) => `Q: ${rawQuestions[i] || `Q${i + 1}`}\nA: ${a}`).join('\n\n')
       : null;
 
-    // ── Edit signal ──
-    const editBlock = edits?.length
-      ? edits.map((e: { generated_output: string; edits_made: string }, i: number) =>
-          `Edit ${i + 1}:\nOriginal: ${e.generated_output?.slice(0, 300)}\nChanged to: ${e.edits_made?.slice(0, 300)}`
-        ).join('\n\n---\n\n')
-      : null;
-
-    // ── Rejection signal ──
-    const rejectionBlock = rejections?.length
+    // ── Rejection signal (raw, before learning engine distills them) ──
+    const rejectionBlock = rejections.length
       ? rejections.map((r: { rejection_reason: string }) => `- ${r.rejection_reason}`).join('\n')
       : null;
 
-    // ── User type ──
+    // ── Edit signal (raw, before learning engine distills them) ──
+    const editBlock = edits.length
+      ? edits
+          .map(
+            (e: { generated_output: string; edits_made: string }, i: number) =>
+              `Edit ${i + 1}:\nOriginal: ${e.generated_output?.slice(0, 200)}\nChanged to: ${e.edits_made?.slice(0, 200)}`
+          )
+          .join('\n\n---\n\n')
+      : null;
+
+    // ── User type guidance ──
     const userTypeGuidance =
       user?.user_type === 'jobseeker'
-        ? `This person is actively job seeking. Posts should position them as skilled and intentional — not desperate. Highlight competence, curiosity, growth. Never mention "open to work".`
+        ? `Job seeker. Posts position them as skilled and intentional. Never mention "open to work".`
         : user?.user_type === 'student'
-        ? `This person is a student. Posts should feel genuinely curious and growth-oriented — not trying to sound more senior than they are.`
-        : `This person is a working professional. Posts should reflect real experience and genuine insight from the field.`;
+        ? `Student. Posts feel genuinely curious and growth-oriented.`
+        : `Working professional. Posts reflect real experience and field insight.`;
 
-    // ── Extracted signals (secondary) ──
-    const signalSummary = profile ? [
-      profile.domain && `Field: ${profile.domain}`,
-      profile.role && `Role: ${profile.role}`,
-      profile.sentence_rhythm && `Sentence rhythm: ${profile.sentence_rhythm}`,
-      profile.structure_preference && `Structure preference: ${profile.structure_preference}`,
-      profile.technical_depth && `Technical depth: ${profile.technical_depth}`,
-      profile.emotional_honesty && `Emotional honesty: ${profile.emotional_honesty}`,
-      profile.personality_type && `Personality: ${profile.personality_type}`,
-      profile.real_vocabulary && `Vocabulary they use: ${profile.real_vocabulary}`,
-      profile.posting_goal && `Posting goal: ${profile.posting_goal}`,
-      profile.audience && `Target audience: ${profile.audience}`,
-      profile.explicit_preferences && `Explicit preferences: ${profile.explicit_preferences}`,
-    ].filter(Boolean).join('\n') : null;
+    // ── Hashtag instruction based on LinkedIn DNA ──
+    const hashtagCount =
+      linkedinDNA.hashtag_usage === 'none' ? 0 :
+      linkedinDNA.hashtag_usage === 'minimal' ? 3 :
+      linkedinDNA.hashtag_usage === 'moderate' ? 5 : 3;
 
-    const systemPrompt = `You are DumpPost. You turn raw, unfiltered thoughts into LinkedIn posts that sound exactly like the person who wrote them.
+    const memoryBlock = buildMemoryBlock(memory);
 
-Your output MUST follow this exact two-part format — no exceptions:
+    // ── Build the generation prompt ──
+    const systemPrompt = `You are a LinkedIn ghostwriter. Write a post that sounds exactly like this person — not like AI, not like a LinkedIn template.
 
-<thinking>
-Your private reasoning goes here. Before writing anything, think through:
-1. VOICE ANALYSIS — Read the onboarding answers carefully. How does this person actually write? Note their sentence length, word choices, formality level, how much they hedge vs how confident they sound, any distinctive phrases or patterns. Be specific — don't say "casual", say "uses lowercase, short bursts, self-deprecating".
-2. DUMP ANALYSIS — What is the core thing they want to say? What's the emotion or insight underneath the raw thought? What should the hook be?
-3. VOICE MATCH PLAN — How will you write this post to sound like them specifically? What would you avoid that would sound too polished, too AI, too generic?
-4. STRUCTURE PLAN — What's the opening line? How does it flow? How does it end?
-</thinking>
-<post>
-The LinkedIn post goes here. Nothing else — no intro, no explanation, no "Here's your post:". Just the post itself, ending with 3-5 hashtags on a new line.
-</post>
+The intelligence is in the profile below. Follow it precisely.`;
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WHO THIS PERSON IS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Name: ${user?.name || 'Unknown'}
-${userTypeGuidance}
-${signalSummary ? `\nExtracted signals (use for calibration only):\n${signalSummary}` : ''}
+    const userMessage = `
+NAME: ${user?.name || 'Unknown'}
+TYPE: ${userTypeGuidance}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-THEIR ACTUAL WORDS — primary voice signal
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${onboardingBlock
-  ? `Read these carefully before writing anything. This is how they actually write:\n\n${onboardingBlock}`
-  : 'No onboarding answers available yet — rely on signals above.'}
+━━━ POST TYPE ━━━
+Type: ${classification.post_type}
+Core message: ${classification.core_message}
+Core emotion: ${classification.core_emotion}
+Structure to follow: ${classification.suggested_structure}
+Hook angle: ${classification.hook_angle || 'derive from the dump'}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WHAT THEY'VE CORRECTED — strongest signal if available
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${editBlock
-  ? `Study every change they made — the gap between original and edited is your clearest voice signal:\n\n${editBlock}`
-  : 'No edits yet.'}
+━━━ VOICE DNA — follow exactly ━━━
+${buildVoiceBlock(voiceDNA)}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WHAT TO AVOID
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${rejectionBlock
-  ? `They rejected posts for these reasons:\n${rejectionBlock}`
-  : 'No rejections yet.'}
+━━━ THINKING DNA — structure the post this way ━━━
+${buildThinkingBlock(thinkingDNA)}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WRITING RULES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- First line must earn attention — but feel like them, not a copywriting hook
-- Never open with "I"
-- Never use: "Excited to share", "Humbled", "Game-changer", "Thrilled", "Delighted"
-- No corporate filler — cut anything that sounds like a press release
-- If the dump expresses uncertainty, the post should stay uncertain — never fake confidence
-- Never invent details not in the dump
-- Length proportional to input richness
-- End with 3–5 relevant hashtags on a new line
+━━━ LINKEDIN PREFERENCES ━━━
+${buildLinkedInBlock(linkedinDNA)}
 
-${previousOutput
-  ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PREVIOUS VERSION — IMPROVE DON'T REWRITE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-User wasn't happy with this. Keep what worked, fix what didn't:\n\n${previousOutput}`
-  : ''}`;
+━━━ RULES LEARNED FROM THEIR EDITS ━━━
+${editingRules.length > 0 ? editingRules.join('\n') : 'None yet.'}
 
-    const userMessage = `Here's what's on my mind:\n\n${dump}`;
+━━━ THINGS TO AVOID ━━━
+${avoidRules.length > 0 ? avoidRules.join('\n') : 'None yet.'}
+${rejectionBlock ? `\nRaw rejection reasons:\n${rejectionBlock}` : ''}
 
-    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage },
-        ],
-        temperature: 0.92,
-        max_tokens: 1400,
-      }),
-    });
+━━━ MEMORY — DIVERSIFY FROM RECENT POSTS ━━━
+${memoryBlock || 'No previous posts yet.'}
 
-    if (!groqRes.ok) {
-      const errText = await groqRes.text();
-      console.error('Groq error:', groqRes.status, errText);
-      return NextResponse.json({ error: `Groq error ${groqRes.status}` }, { status: 500 });
-    }
+━━━ THEIR ACTUAL WRITING (voice reference) ━━━
+${onboardingBlock ? `Study how they write — sentence length, word choices, formality:\n\n${onboardingBlock}` : 'No onboarding data.'}
+${editBlock ? `\nRecent edits (strongest voice signal):\n${editBlock}` : ''}
 
-    const data = await groqRes.json();
-    const fullResponse = data.choices?.[0]?.message?.content?.trim();
+━━━ THE DUMP ━━━
+${dump}
 
-    if (!fullResponse) {
-      console.error('Groq returned no content:', JSON.stringify(data));
-      return NextResponse.json({ error: 'No post generated' }, { status: 500 });
-    }
+━━━ RULES ━━━
+- Follow their Voice DNA exactly — this is non-negotiable
+- Follow the suggested structure for this post type
+- Never open with "I" as the first word
+- Do not repeatedly start sentences with "I"
+- Never use: "Excited to share", "Humbled", "Game-changer", "Thrilled"
+- Never invent facts not in the dump
+- If the dump is uncertain, the post stays uncertain — never fake confidence
+- Length should match their preferred_length preference
+- End with ${hashtagCount > 0 ? `${hashtagCount} relevant hashtags on a new line` : 'no hashtags'}
+- Output ONLY the post. Nothing else.
 
-    // Extract reasoning and post separately
-    const reasoningMatch = fullResponse.match(/<thinking>([\s\S]*?)<\/thinking>/);
-    const postMatch = fullResponse.match(/<post>([\s\S]*?)<\/post>/);
+${previousOutput ? `━━━ PREVIOUS VERSION — IMPROVE DON'T REWRITE ━━━\nUser was not happy with this. Keep what worked, fix what didn't:\n\n${previousOutput}` : ''}
+`.trim();
 
-    const reasoning = reasoningMatch?.[1]?.trim() || null;
-
-    // If model followed format, use the post block. Otherwise fall back to stripping tags.
-    const post = postMatch?.[1]?.trim() ||
-      fullResponse
-        .replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
-        .replace(/<post>|<\/post>/g, '')
-        .trim();
+    // ── Generate the post ──
+    let post = await groqCall(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
+      0.65,
+      900
+    );
 
     if (!post) {
       return NextResponse.json({ error: 'No post generated' }, { status: 500 });
     }
 
-    return NextResponse.json({ post, reasoning });
+    // ── Anti-AI filter pass ──
+    const filtered = applyAntiAIFilter(post);
+    const needsRewrite = hasFlags(filtered);
+
+    if (needsRewrite) {
+      // ── Authenticity checker pass — rewrite flagged sentences only ──
+      const rewritten = await groqCall(
+        [
+          {
+            role: 'system',
+            content: `You are an editor. Rewrite flagged words/phrases marked as [FLAG:word] with plain, human language. Keep everything else exactly the same. Output only the post.`,
+          },
+          {
+            role: 'user',
+            content: `Rewrite only the flagged parts in this post. Use simple, direct language. Match the surrounding tone:\n\n${filtered}`,
+          },
+        ],
+        0.5,
+        900
+      );
+      post = rewritten || stripFlags(filtered);
+    } else {
+      post = filtered;
+    }
+
+    // ── Final cleanup ──
+    post = post
+      .replace(/\[FLAG:[^\]]+\]/gi, '')
+      .trim();
+
+    return NextResponse.json({ post, classification });
 
   } catch (err) {
     console.error('Generate error:', err);
