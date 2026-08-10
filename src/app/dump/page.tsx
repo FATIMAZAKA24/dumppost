@@ -409,9 +409,17 @@ export default function Dump() {
                     {output && !showRetryPanel && !isEditing && (
                       <div className="dump-feedback">
                         <button className="feedback-btn" onClick={async () => {
-                          handleCopy();
-                          if (currentInteractionId) await supabase.from('interactions').update({ user_response: 'accepted' }).eq('id', currentInteractionId);
-                        }}>{copied ? '✓ Copied' : 'Copy'}</button>
+                        handleCopy();
+                        const { data: { session } } = await supabase.auth.getSession();
+                        if (currentInteractionId) await supabase.from('interactions').update({ user_response: 'accepted' }).eq('id', currentInteractionId);
+                        if (session?.user) {
+                          fetch('/api/update-memory', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId: session.user.id, post: output, postType: null }),
+                          }).catch(console.error);
+                        }
+                      }}>{copied ? '✓ Copied' : 'Copy'}</button>
                         <button className="feedback-btn" onClick={() => { setIsEditing(true); setEditedOutput(output); }}>✎ Refine</button>
                         <button className="feedback-btn reject" onClick={() => { setShowRetryPanel(true); setSelectedReason(''); setCustomReason(''); }}>↺ Retry</button>
                       </div>
@@ -556,9 +564,17 @@ export default function Dump() {
                       <span className="dump-label">Your post</span>
                       <div className="mobile-post-actions">
                         <button className="mobile-act-btn" onClick={async () => {
-                          handleCopy();
-                          if (currentInteractionId) await supabase.from('interactions').update({ user_response: 'accepted' }).eq('id', currentInteractionId);
-                        }}>
+                        handleCopy();
+                        const { data: { session } } = await supabase.auth.getSession();
+                        if (currentInteractionId) await supabase.from('interactions').update({ user_response: 'accepted' }).eq('id', currentInteractionId);
+                        if (session?.user) {
+                          fetch('/api/update-memory', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId: session.user.id, post: output, postType: null }),
+                          }).catch(console.error);
+                        }
+                      }}>
                           <i className="ti ti-copy" />{copied ? 'Copied' : 'Copy'}
                         </button>
                         <button className="mobile-act-btn" onClick={() => { setIsEditing(true); setEditedOutput(output); setOutput(''); }}>
