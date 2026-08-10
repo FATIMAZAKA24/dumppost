@@ -199,6 +199,21 @@ export default function Dump() {
     if (currentInteractionId) {
       await supabase.from('interactions').update({ user_response: 'rejected', rejection_reason: reason }).eq('id', currentInteractionId);
     }
+
+    // ── Background learning from rejection ──
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user && reason) {
+    fetch('/api/learn-from-rejection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: session.user.id,
+        rejectionReason: reason,
+        generatedPost: output,
+      }),
+    }).catch(console.error);
+  }
+
     setLastRejectionReason(reason);
     setShowRetryPanel(false);
     setSelectedReasons([]);
