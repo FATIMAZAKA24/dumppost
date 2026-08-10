@@ -78,13 +78,15 @@ async function classifyDump(dump: string) {
 
 Post types: story | lesson | opinion | reflection | tutorial | observation | announcement | behind-the-scenes
 
+IMPORTANT tense rule: If the dump uses present tense or does not explicitly say something is finished/past, classify it as ongoing/present. Do not infer past tense.
+
 Return:
 {
   "post_type": "one of the types above",
-  "core_message": "one sentence — what is the person actually trying to say?",
+  "core_message": "one sentence — what is the person actually trying to say? Use the same tense as the dump.",
   "core_emotion": "one word — what emotion is underneath this dump?",
   "suggested_structure": "observation→analysis→question | story→conflict→lesson | opinion→evidence→conclusion | experience→reflection→advice | question→exploration→open-end",
-  "hook_angle": "one sentence — what would make someone stop scrolling for this specific post?"
+  "hook_angle": "one sentence — what would make someone stop scrolling for this specific post? Do not use past tense unless the dump explicitly does."
 }`,
     },
   ], 0.2, 300);
@@ -301,13 +303,25 @@ ${editBlock ? `\nRecent edits (strongest voice signal):\n${editBlock}` : ''}
 ${dump}
 
 ━━━ RULES ━━━
-- Follow their Voice DNA exactly — this is non-negotiable
-- Follow the suggested structure for this post type
+VOICE:
+- Follow their Voice DNA exactly — non-negotiable
+- You own all punctuation and formatting decisions — do not copy the dump's punctuation or lack of it
+- Apply proper sentence breaks, paragraph spacing, and rhythm based on their Voice DNA
 - Never open with "I" as the first word
-- Do not repeatedly start sentences with "I"
+- Do not repeatedly start consecutive sentences with "I"
 - Never use: "Excited to share", "Humbled", "Game-changer", "Thrilled"
+
+CONTENT:
+- Use ALL the details in the dump — do not flatten or summarise. If they gave specific details (names, systems, problems, pivots), include them
+- DUMP FIDELITY — most important rule:The dump is the only source of truth. Every claim, every tense, every emotion, every outcome in the post must be directly supported by something the user actually wrote in the dump. If it is not in the dump, it does not go in the post.Do not infer, assume, complete, or extrapolate anything — not tense, not outcome,not emotion, not context. If the dump is ambiguous, the post stays ambiguous.
+- If the dump is uncertain, the post stays uncertain — never fake confidence or resolution
 - Never invent facts not in the dump
-- If the dump is uncertain, the post stays uncertain — never fake confidence
+
+STRUCTURE:
+- Follow the suggested structure for this post type
+- Each paragraph should serve a purpose — hook, development, insight, close
+
+FORMAT:
 - Length should match their preferred_length preference
 - End with ${hashtagCount > 0 ? `${hashtagCount} relevant hashtags on a new line` : 'no hashtags'}
 - Output ONLY the post. Nothing else.
