@@ -8,8 +8,8 @@ const supabaseAdmin = createClient(
 
 async function groqCall(
   messages: { role: string; content: string }[],
-  temperature = 0.65,
-  max_tokens = 900
+  temperature = 0.72,
+  max_tokens = 1200
 ) {
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -312,6 +312,11 @@ VOICE:
 - Do not repeatedly start consecutive sentences with "I"
 - Never use: "Excited to share", "Humbled", "Game-changer", "Thrilled"
 
+FORMATTING OVERRIDE:
+- LinkedIn posts use proper capitalization regardless of Voice DNA — capitalize first word of every sentence
+- Use proper punctuation — periods, commas where needed
+- Voice DNA applies to: sentence length, formality, word choice, paragraph breaks — NOT capitalization or punctuation
+
 CONTENT:
 - Use ALL the details in the dump — do not flatten or summarise. If they gave specific details (names, systems, problems, pivots), include them
 - DUMP FIDELITY + EDITORIAL JUDGMENT:
@@ -333,9 +338,11 @@ STRUCTURE:
 - Each paragraph should serve a purpose — hook, development, insight, close
 
 FORMAT:
-- Length should match their preferred_length preference
+- Length should match their preferred_length preference - "medium" length means 150-250 words — do not write less than 120 words
 - End with ${hashtagCount > 0 ? `${hashtagCount} relevant hashtags on a new line` : 'no hashtags'}
 - Output ONLY the post. Nothing else.
+
+
 
 ${previousOutput ? `━━━ PREVIOUS VERSION — IMPROVE DON'T REWRITE ━━━\nUser was not happy with this. Keep what worked, fix what didn't:\n\n${previousOutput}` : ''}
 `.trim();
