@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
-
 type Section = 'workspace' | 'history' | 'profile' | 'settings' | 'tutorials' | 'privacy' | 'usage' | 'pricing';
 
 function RetryMicButton({ onTranscript }: { onTranscript: (text: string) => void }) {
@@ -14,6 +13,15 @@ function RetryMicButton({ onTranscript }: { onTranscript: (text: string) => void
       <i className={`ti ${transcribing ? 'ti-loader' : isRecording ? 'ti-microphone-off' : 'ti-microphone'}`} style={{ color: isRecording ? '#ff6b6b' : 'var(--text-dim)' }} />
     </button>
   );
+}
+
+// Shared learning call — fire and forget
+function triggerLearnFromEdit(userId: string, originalPost: string, editedPost: string) {
+  fetch('/api/learn-from-edit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, originalPost, editedPost }),
+  }).catch(console.error);
 }
 
 export default function Dump() {
@@ -121,9 +129,6 @@ export default function Dump() {
     setHistoryLoading(false);
   };
 
-  // Now accepts an optional rejectionReason so the specific feedback
-  // that triggered THIS regeneration reaches the API directly,
-  // instead of relying only on the pooled last-5 rejections in Supabase.
   const handleGenerate = async (rejectionReason?: string) => {
     if (input.trim().length === 0) return;
     setLoading(true);
@@ -151,7 +156,13 @@ export default function Dump() {
           setVersionGroup(newVersionGroup);
           const { data: interaction } = await supabase
             .from('interactions')
-            .insert({ user_id: session.user.id, raw_input: input.trim(), generated_output: data.post, llm_reasoning: data.reasoning || null, version_group: newVersionGroup })
+            .insert({
+              user_id: session.user.id,
+              raw_input: input.trim(),
+              generated_output: data.post,
+              llm_reasoning: data.reasoning || null,
+              version_group: newVersionGroup,
+            })
             .select().single();
           if (interaction) setCurrentInteractionId(interaction.id);
         }
@@ -169,10 +180,10 @@ export default function Dump() {
   };
 
   const handleLogout = async () => {
-  await supabase.auth.signOut();
-  localStorage.clear();
-  router.push('/');
-};
+    await supabase.auth.signOut();
+    localStorage.clear();
+    router.push('/');
+  };
 
   const handleNewPost = () => {
     setInput('');
@@ -183,10 +194,6 @@ export default function Dump() {
     setSection('workspace');
   };
 
-  // Shared handler for both desktop and mobile Regenerate buttons.
-  // Builds the reason string, saves it to Supabase, AND passes it
-  // directly into handleGenerate so this specific regeneration
-  // gets the exact feedback, not just the pooled history.
   const handleRegenerate = async () => {
     const reason = [...selectedReasons, customReason.trim()].filter(Boolean).join('; ');
     if (currentInteractionId) {
@@ -202,7 +209,27 @@ export default function Dump() {
     handleGenerate(reason);
   };
 
-  // State 2 condition
+  // Shared edit save handler — used by both desktop and mobile
+  const handleSaveEdit = async () => {
+    navigator.clipboard.writeText(editedOutput);
+    const originalPost = output;
+    setOutput(editedOutput);
+    setIsEditing(false);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (currentInteractionId) {
+      await supabase.from('interactions')
+        .update({ user_response: 'edited', edits_made: editedOutput })
+        .eq('id', currentInteractionId);
+    }
+    // Background learning — fire and forget
+    if (session?.user) {
+      triggerLearnFromEdit(session.user.id, originalPost, editedOutput);
+    }
+  };
+
   const isState2 = !!(output && !loading && !showRetryPanel && !isEditing);
 
   return (
@@ -218,8 +245,7 @@ export default function Dump() {
         </div>
         <div className="mobile-drawer-nav">
           <button className="mobile-drawer-new-post" onClick={handleNewPost}>
-            <i className="ti ti-pencil-plus" />
-            New post
+            <i className="ti ti-pencil-plus" />New post
           </button>
           <button className={`mobile-drawer-nav-item ${section === 'workspace' ? 'active' : ''}`} onClick={() => setSection('workspace')}>
             <i className="ti ti-writing" />Workspace
@@ -263,8 +289,7 @@ export default function Dump() {
             </button>
           </div>
           <button className="new-post-btn" onClick={handleNewPost}>
-            <i className="ti ti-pencil-plus" />
-            {!sidebarCollapsed && <span>New post</span>}
+            <i className="ti ti-pencil-plus" />{!sidebarCollapsed && <span>New post</span>}
           </button>
           <nav className="sidebar-nav">
             <button data-tooltip="Workspace" className={`nav-item ${section === 'workspace' ? 'active' : ''}`} onClick={() => setSection('workspace')}>
@@ -319,9 +344,7 @@ export default function Dump() {
             <i className="ti ti-layout-sidebar" />
           </button>
           <div className="mobile-topbar-right">
-            <span className="dump-greeting">
-              {name ? `Hi, ${name}` : 'Workspace'}
-            </span>
+            <span className="dump-greeting">{name ? `Hi, ${name}` : 'Workspace'}</span>
             <button className="theme-toggle" style={{ position: 'static', opacity: 0.4 }} onClick={() => setDark(!dark)}>
               {dark ? '🌙' : '☀️'}
             </button>
@@ -354,7 +377,7 @@ export default function Dump() {
                     onChange={(e) => setInput(e.target.value)}
                   />
                   <div className="dump-panel-footer">
-                    <button className={`mic-btn ${isRecording ? 'recording' : ''}`} onClick={handleMicToggle} disabled={loading || transcribing} title={isRecording ? 'Stop recording' : 'Start voice input'}>
+                    <button className={`mic-btn ${isRecording ? 'recording' : ''}`} onClick={handleMicToggle} disabled={loading || transcribing}>
                       <i className={`ti ${transcribing ? 'ti-loader' : isRecording ? 'ti-microphone-off' : 'ti-microphone'}`} />
                       {isRecording && <span className="mic-label">Recording...</span>}
                       {transcribing && <span className="mic-label">Transcribing...</span>}
@@ -364,24 +387,29 @@ export default function Dump() {
                     </button>
                   </div>
                 </div>
+
                 <div className="dump-panel dump-panel-right">
                   <div className="dump-panel-header">
                     <span className="dump-label">Your post</span>
                     {output && !showRetryPanel && !isEditing && (
                       <div className="dump-feedback">
-                        <button className="feedback-btn" onClick={async () => { handleCopy(); if (currentInteractionId) await supabase.from('interactions').update({ user_response: 'accepted' }).eq('id', currentInteractionId); }}>{copied ? '✓ Copied' : 'Copy'}</button>
+                        <button className="feedback-btn" onClick={async () => {
+                          handleCopy();
+                          if (currentInteractionId) await supabase.from('interactions').update({ user_response: 'accepted' }).eq('id', currentInteractionId);
+                        }}>{copied ? '✓ Copied' : 'Copy'}</button>
                         <button className="feedback-btn" onClick={() => { setIsEditing(true); setEditedOutput(output); }}>✎ Refine</button>
                         <button className="feedback-btn reject" onClick={() => { setShowRetryPanel(true); setSelectedReason(''); setCustomReason(''); }}>↺ Retry</button>
                       </div>
                     )}
                     {isEditing && (
                       <div className="dump-feedback">
-                        <button className="feedback-btn" onClick={async () => { navigator.clipboard.writeText(editedOutput); setOutput(editedOutput); setIsEditing(false); setCopied(true); setTimeout(() => setCopied(false), 2000); if (currentInteractionId) await supabase.from('interactions').update({ user_response: 'edited', edits_made: editedOutput }).eq('id', currentInteractionId); }}>✓ Copy edited</button>
+                        <button className="feedback-btn" onClick={handleSaveEdit}>✓ Copy edited</button>
                         <button className="feedback-btn" onClick={() => { setOutput(editedOutput); setIsEditing(false); }}>Save</button>
                         <button className="feedback-btn reject" onClick={() => { setIsEditing(false); setEditedOutput(''); }}>Cancel</button>
                       </div>
                     )}
                   </div>
+
                   {!output && !loading && (
                     <div className="dump-empty-ghost">
                       <div className="ghost-label">Your post will appear here</div>
@@ -431,10 +459,8 @@ export default function Dump() {
               </div>
             </div>
 
-            {/* ── Mobile workspace — inlined, no sub-components ── */}
+            {/* ── Mobile workspace ── */}
             <div className="mobile-workspace mobile-only">
-
-              {/* State 1: writing / loading / retry / editing */}
               {!isState2 && (
                 <>
                   <div className="mobile-dump-header">
@@ -443,7 +469,6 @@ export default function Dump() {
                   </div>
 
                   <div className="mobile-dumpbox-wrap">
-                    {/* Normal textarea — always mounted, hidden when not needed */}
                     {!loading && !showRetryPanel && (
                       <textarea
                         className="mobile-dump-textarea"
@@ -452,20 +477,14 @@ export default function Dump() {
                         onChange={(e) => isEditing ? setEditedOutput(e.target.value) : setInput(e.target.value)}
                       />
                     )}
-
-                    {/* Loading — centered */}
                     {loading && (
                       <div className="mobile-loading-center">
                         <div className="loading-dots">
-                          <span className="dump-loading-dot" />
-                          <span className="dump-loading-dot" />
-                          <span className="dump-loading-dot" />
+                          <span className="dump-loading-dot" /><span className="dump-loading-dot" /><span className="dump-loading-dot" />
                         </div>
                         <p className="dump-loading-label">Writing your post...</p>
                       </div>
                     )}
-
-                    {/* Retry panel */}
                     {showRetryPanel && (
                       <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
                         <p className="retry-label">What didn't work?</p>
@@ -483,8 +502,6 @@ export default function Dump() {
                         </div>
                       </div>
                     )}
-
-                    {/* Mic button — bottom-right of box, only in normal/edit mode */}
                     {!loading && !showRetryPanel && (
                       <button className={`mobile-mic-btn ${isRecording ? 'recording' : ''}`} onClick={handleMicToggle} disabled={transcribing}>
                         <i className={`ti ${transcribing ? 'ti-loader' : isRecording ? 'ti-microphone-off' : 'ti-microphone'}`} />
@@ -492,7 +509,6 @@ export default function Dump() {
                     )}
                   </div>
 
-                  {/* Generate / action button pinned at bottom */}
                   {showRetryPanel ? (
                     <div style={{ display: 'flex', gap: '8px', padding: '10px 16px 16px' }}>
                       <button className="feedback-btn" style={{ flex: 1 }} onClick={() => { setShowRetryPanel(false); setSelectedReason(''); setCustomReason(''); }}>Cancel</button>
@@ -501,14 +517,7 @@ export default function Dump() {
                   ) : isEditing ? (
                     <div style={{ display: 'flex', gap: '8px', padding: '10px 16px 16px' }}>
                       <button className="feedback-btn" style={{ flex: 1 }} onClick={() => { setIsEditing(false); setEditedOutput(''); }}>Cancel</button>
-                      <button className="mobile-generate-btn" style={{ flex: 2, margin: 0 }} onClick={async () => {
-                        navigator.clipboard.writeText(editedOutput);
-                        setOutput(editedOutput);
-                        setIsEditing(false);
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 2000);
-                        if (currentInteractionId) await supabase.from('interactions').update({ user_response: 'edited', edits_made: editedOutput }).eq('id', currentInteractionId);
-                      }}>Copy edited →</button>
+                      <button className="mobile-generate-btn" style={{ flex: 2, margin: 0 }} onClick={handleSaveEdit}>Copy edited →</button>
                     </div>
                   ) : (
                     <button className="mobile-generate-btn" onClick={() => handleGenerate()} disabled={loading || input.trim().length === 0}>
@@ -518,7 +527,6 @@ export default function Dump() {
                 </>
               )}
 
-              {/* State 2: post generated */}
               {isState2 && (
                 <>
                   <div className="mobile-dump-mini">
@@ -528,12 +536,14 @@ export default function Dump() {
                     </div>
                     <div className="mobile-dump-mini-text">{input.length > 80 ? input.slice(0, 80) + '…' : input}</div>
                   </div>
-
                   <div className="mobile-post-area">
                     <div className="mobile-post-header">
                       <span className="dump-label">Your post</span>
                       <div className="mobile-post-actions">
-                        <button className="mobile-act-btn" onClick={async () => { handleCopy(); if (currentInteractionId) await supabase.from('interactions').update({ user_response: 'accepted' }).eq('id', currentInteractionId); }}>
+                        <button className="mobile-act-btn" onClick={async () => {
+                          handleCopy();
+                          if (currentInteractionId) await supabase.from('interactions').update({ user_response: 'accepted' }).eq('id', currentInteractionId);
+                        }}>
                           <i className="ti ti-copy" />{copied ? 'Copied' : 'Copy'}
                         </button>
                         <button className="mobile-act-btn" onClick={() => { setIsEditing(true); setEditedOutput(output); setOutput(''); }}>
@@ -581,7 +591,7 @@ export default function Dump() {
                       <div key={latest.id} className="history-item">
                         <div className="history-item-header">
                           <span className="history-date">{new Date(latest.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}{hasVersions && <span className="version-badge">{versions.length} versions</span>}</span>
-                        <button className="settings-action-btn" onClick={() => navigator.clipboard.writeText(latest.generated_output)}>Copy</button>
+                          <button className="settings-action-btn" onClick={() => navigator.clipboard.writeText(latest.generated_output)}>Copy</button>
                         </div>
                         <p className="history-post">{latest.generated_output}</p>
                         {hasVersions && (
@@ -608,224 +618,127 @@ export default function Dump() {
         )}
 
         {/* ── PROFILE ── */}
-{section === 'profile' && (
-  <div className="section-page">
-    <div className="section-header">
-      <h2 className="section-title">Profile</h2>
-      <p className="section-subtitle">How DumpPost knows you.</p>
-    </div>
-
-    <div className="profile-grid">
-      {/* NAME CARD */}
-      <div className="profile-card">
-        <span className="profile-card-label">Name</span>
-        {editingName ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
-            <input
-              className="auth-input"
-              value={editNameValue}
-              onChange={e => setEditNameValue(e.target.value)}
-              autoFocus
-              style={{ backgroundColor: 'transparent', fontSize: '1rem' }}
-            />
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="feedback-btn" onClick={async () => {
-                if (!editNameValue.trim()) return;
-                setProfileSaving(true);
-                const { data: { session } } = await supabase.auth.getSession();
-                if (session?.user) {
-                  await supabase.from('users').update({ name: editNameValue.trim() }).eq('id', session.user.id);
-                  localStorage.setItem('dp-name', editNameValue.trim());
-                  setName(editNameValue.trim());
-                }
-                setEditingName(false);
-                setProfileSaving(false);
-              }}>
-                {profileSaving ? 'Saving...' : 'Save'}
-              </button>
-              <button className="feedback-btn" onClick={() => setEditingName(false)}>Cancel</button>
+        {section === 'profile' && (
+          <div className="section-page">
+            <div className="section-header">
+              <h2 className="section-title">Profile</h2>
+              <p className="section-subtitle">How DumpPost knows you.</p>
             </div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className="profile-card-value">{name || '—'}</span>
-            <button className="settings-action-btn" onClick={() => { setEditNameValue(name); setEditingName(true); }}>
-              <i className="ti ti-pencil" />
-            </button>
+            <div className="profile-grid">
+              <div className="profile-card">
+                <span className="profile-card-label">Name</span>
+                {editingName ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
+                    <input className="auth-input" value={editNameValue} onChange={e => setEditNameValue(e.target.value)} autoFocus style={{ backgroundColor: 'transparent', fontSize: '1rem' }} />
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button className="feedback-btn" onClick={async () => {
+                        if (!editNameValue.trim()) return;
+                        setProfileSaving(true);
+                        const { data: { session } } = await supabase.auth.getSession();
+                        if (session?.user) {
+                          await supabase.from('users').update({ name: editNameValue.trim() }).eq('id', session.user.id);
+                          localStorage.setItem('dp-name', editNameValue.trim());
+                          setName(editNameValue.trim());
+                        }
+                        setEditingName(false);
+                        setProfileSaving(false);
+                      }}>{profileSaving ? 'Saving...' : 'Save'}</button>
+                      <button className="feedback-btn" onClick={() => setEditingName(false)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span className="profile-card-value">{name || '—'}</span>
+                    <button className="settings-action-btn" onClick={() => { setEditNameValue(name); setEditingName(true); }}><i className="ti ti-pencil" /></button>
+                  </div>
+                )}
+              </div>
+              <div className="profile-card">
+                <span className="profile-card-label">Type</span>
+                {editingType ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {[{ value: 'employed', label: 'Working Professional' }, { value: 'student', label: 'Student' }, { value: 'jobseeker', label: 'Job Seeker' }].map(opt => (
+                        <button key={opt.value} onClick={() => setEditTypeValue(opt.value)} style={{ textAlign: 'left', padding: '8px 12px', borderRadius: '6px', border: `0.5px solid ${editTypeValue === opt.value ? 'var(--accent)' : 'var(--border)'}`, background: editTypeValue === opt.value ? 'var(--surface)' : 'transparent', color: editTypeValue === opt.value ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem', fontFamily: 'DM Sans, sans-serif' }}>{opt.label}</button>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button className="feedback-btn" onClick={async () => {
+                        if (!editTypeValue) return;
+                        setProfileSaving(true);
+                        const { data: { session } } = await supabase.auth.getSession();
+                        if (session?.user) {
+                          await supabase.from('users').update({ user_type: editTypeValue }).eq('id', session.user.id);
+                          localStorage.setItem('dp-type', editTypeValue);
+                        }
+                        setEditingType(false);
+                        setProfileSaving(false);
+                      }}>{profileSaving ? 'Saving...' : 'Save'}</button>
+                      <button className="feedback-btn" onClick={() => setEditingType(false)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span className="profile-card-value">
+                      {localStorage.getItem('dp-type') === 'employed' ? 'Working Professional' : localStorage.getItem('dp-type') === 'student' ? 'Student' : localStorage.getItem('dp-type') === 'jobseeker' ? 'Job Seeker' : '—'}
+                    </span>
+                    <button className="settings-action-btn" onClick={() => { setEditTypeValue(localStorage.getItem('dp-type') || 'employed'); setEditingType(true); }}><i className="ti ti-pencil" /></button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="section-divider" />
+            <div className="section-subheader">
+              <h3 className="section-subtitle" style={{ color: 'var(--text)', marginBottom: '4px' }}>Your onboarding answers</h3>
+              <p className="section-subtitle">These shape how your posts sound like you.</p>
+            </div>
+            <div className="answers-list">
+              {(() => {
+                const answers = JSON.parse(localStorage.getItem('dp-answers') || '[]');
+                const type = localStorage.getItem('dp-type');
+                const employedQs = ["What are you working on right now?", "What's the most interesting part of it?", "What's been giving you the most trouble with it?", "Who do you want reading your posts — and what do you want them to think when they do?", "What part of your work do you actually enjoy?", "Anything specific you want DumpPost to keep in mind?"];
+                const studentQs = ["What are you currently studying or learning?", "What's the most interesting thing you've come across recently?", "What's something you've been trying to figure out or struggling with?", "Who do you want reading your posts — and what do you want them to think when they do?", "What part of your field do you actually enjoy?", "Anything specific you want DumpPost to keep in mind?"];
+                const jobseekerQs = ["What kind of role or field are you targeting?", "What's the most relevant thing you've worked on or built?", "What's been the hardest part of your job search so far?", "Who do you want reading your posts?", "What do you want people to think about you when they read your posts?", "Anything specific you want DumpPost to keep in mind?"];
+                const questions = type === 'student' ? studentQs : type === 'jobseeker' ? jobseekerQs : employedQs;
+                if (answers.length === 0) return <p className="section-subtitle">No answers yet — complete onboarding first.</p>;
+                return answers.map((answer: string, i: number) => (
+                  <div key={i} className="answer-item">
+                    <span className="answer-q">{questions[i]}</span>
+                    {editingAnswerIndex === i ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
+                        <textarea className="q-textarea" value={editAnswerValue} onChange={e => setEditAnswerValue(e.target.value)} rows={3} autoFocus style={{ fontSize: '0.85rem' }} />
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button className="feedback-btn" onClick={async () => {
+                            if (!editAnswerValue.trim()) return;
+                            setProfileSaving(true);
+                            const currentAnswers = JSON.parse(localStorage.getItem('dp-answers') || '[]');
+                            currentAnswers[i] = editAnswerValue.trim();
+                            localStorage.setItem('dp-answers', JSON.stringify(currentAnswers));
+                            const { data: { session } } = await supabase.auth.getSession();
+                            if (session?.user) {
+                              await supabase.from('user_profiles').update({ onboarding_answers: currentAnswers }).eq('user_id', session.user.id);
+                              fetch('/api/extract-profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: session.user.id, answers: currentAnswers, userType: localStorage.getItem('dp-type') || 'employed' }) }).catch(console.error);
+                            }
+                            setEditingAnswerIndex(null);
+                            setProfileSaving(false);
+                          }}>{profileSaving ? 'Saving...' : 'Save'}</button>
+                          <button className="feedback-btn" onClick={() => setEditingAnswerIndex(null)}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+                        <span className="answer-a">{answer}</span>
+                        <button className="settings-action-btn" style={{ flexShrink: 0, marginTop: '2px' }} onClick={() => { setEditAnswerValue(answer); setEditingAnswerIndex(i); }}><i className="ti ti-pencil" /></button>
+                      </div>
+                    )}
+                  </div>
+                ));
+              })()}
+            </div>
           </div>
         )}
-      </div>
 
-      {/* TYPE CARD */}
-      <div className="profile-card">
-        <span className="profile-card-label">Type</span>
-        {editingType ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {[
-                { value: 'employed', label: 'Working Professional' },
-                { value: 'student', label: 'Student' },
-                { value: 'jobseeker', label: 'Job Seeker' },
-              ].map(opt => (
-                <button
-                  key={opt.value}
-                  onClick={() => setEditTypeValue(opt.value)}
-                  style={{
-                    textAlign: 'left',
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    border: `0.5px solid ${editTypeValue === opt.value ? 'var(--accent)' : 'var(--border)'}`,
-                    background: editTypeValue === opt.value ? 'var(--surface)' : 'transparent',
-                    color: editTypeValue === opt.value ? 'var(--accent)' : 'var(--text-muted)',
-                    cursor: 'pointer',
-                    fontSize: '0.85rem',
-                    fontFamily: 'DM Sans, sans-serif',
-                  }}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="feedback-btn" onClick={async () => {
-                if (!editTypeValue) return;
-                setProfileSaving(true);
-                const { data: { session } } = await supabase.auth.getSession();
-                if (session?.user) {
-                  await supabase.from('users').update({ user_type: editTypeValue }).eq('id', session.user.id);
-                  localStorage.setItem('dp-type', editTypeValue);
-                }
-                setEditingType(false);
-                setProfileSaving(false);
-              }}>
-                {profileSaving ? 'Saving...' : 'Save'}
-              </button>
-              <button className="feedback-btn" onClick={() => setEditingType(false)}>Cancel</button>
-            </div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className="profile-card-value">
-              {localStorage.getItem('dp-type') === 'employed' ? 'Working Professional'
-                : localStorage.getItem('dp-type') === 'student' ? 'Student'
-                : localStorage.getItem('dp-type') === 'jobseeker' ? 'Job Seeker'
-                : '—'}
-            </span>
-            <button className="settings-action-btn" onClick={() => {
-              setEditTypeValue(localStorage.getItem('dp-type') || 'employed');
-              setEditingType(true);
-            }}>
-  <i className="ti ti-pencil" />
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-
-    <div className="section-divider" />
-
-    <div className="section-subheader">
-      <h3 className="section-subtitle" style={{ color: 'var(--text)', marginBottom: '4px' }}>Your onboarding answers</h3>
-      <p className="section-subtitle">These shape how your posts sound like you.</p>
-    </div>
-
-    <div className="answers-list">
-      {(() => {
-        const answers = JSON.parse(localStorage.getItem('dp-answers') || '[]');
-        const type = localStorage.getItem('dp-type');
-        const employedQuestions = [
-          "What are you working on right now?",
-          "What's the most interesting part of it?",
-          "What's been giving you the most trouble with it?",
-          "Who do you want reading your posts — and what do you want them to think when they do?",
-          "What part of your work do you actually enjoy?",
-          "Anything specific you want DumpPost to keep in mind?",
-        ];
-        const studentQuestions = [
-          "What are you currently studying or learning?",
-          "What's the most interesting thing you've come across recently?",
-          "What's something you've been trying to figure out or struggling with?",
-          "Who do you want reading your posts — and what do you want them to think when they do?",
-          "What part of your field do you actually enjoy?",
-          "Anything specific you want DumpPost to keep in mind?",
-        ];
-        const jobseekerQuestions = [
-          "What kind of role or field are you targeting?",
-          "What's the most relevant thing you've worked on or built?",
-          "What's been the hardest part of your job search so far?",
-          "Who do you want reading your posts?",
-          "What do you want people to think about you when they read your posts?",
-          "Anything specific you want DumpPost to keep in mind?",
-        ];
-        const questions = type === 'student' ? studentQuestions
-          : type === 'jobseeker' ? jobseekerQuestions
-          : employedQuestions;
-
-        if (answers.length === 0) return <p className="section-subtitle">No answers yet — complete onboarding first.</p>;
-
-        return answers.map((answer: string, i: number) => (
-          <div key={i} className="answer-item">
-            <span className="answer-q">{questions[i]}</span>
-            {editingAnswerIndex === i ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
-                <textarea
-                  className="q-textarea"
-                  value={editAnswerValue}
-                  onChange={e => setEditAnswerValue(e.target.value)}
-                  rows={3}
-                  autoFocus
-                  style={{ fontSize: '0.85rem' }}
-                />
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button className="feedback-btn" onClick={async () => {
-                    if (!editAnswerValue.trim()) return;
-                    setProfileSaving(true);
-                    const currentAnswers = JSON.parse(localStorage.getItem('dp-answers') || '[]');
-                    currentAnswers[i] = editAnswerValue.trim();
-                    localStorage.setItem('dp-answers', JSON.stringify(currentAnswers));
-                    const { data: { session } } = await supabase.auth.getSession();
-                    if (session?.user) {
-                      await supabase.from('user_profiles').update({
-                        onboarding_answers: currentAnswers
-                      }).eq('user_id', session.user.id);
-                      // Re-extract profile signals in background
-                      const savedType = localStorage.getItem('dp-type') || 'employed';
-                      fetch('/api/extract-profile', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          userId: session.user.id,
-                          answers: currentAnswers,
-                          userType: savedType,
-                        }),
-                      }).catch(console.error);
-                    }
-                    setEditingAnswerIndex(null);
-                    setProfileSaving(false);
-                  }}>
-                    {profileSaving ? 'Saving...' : 'Save'}
-                  </button>
-                  <button className="feedback-btn" onClick={() => setEditingAnswerIndex(null)}>Cancel</button>
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-                <span className="answer-a">{answer}</span>
-                <button
-                  className="settings-action-btn"
-                  style={{ flexShrink: 0, marginTop: '2px' }}
-                  onClick={() => { setEditAnswerValue(answer); setEditingAnswerIndex(i); }}
-                >
-                  <i className="ti ti-pencil" />
-                </button>
-              </div>
-            )}
-          </div>
-        ));
-      })()}
-    </div>
-  </div>
-)}
         {/* ── SETTINGS ── */}
         {section === 'settings' && (
           <div className="section-page">
@@ -838,12 +751,9 @@ export default function Dump() {
             <div className="settings-group">
               <p className="settings-group-label">Account</p>
               <div className="settings-row"><div className="settings-row-info"><span className="settings-row-title">Email</span><span className="settings-row-desc">Your account email address</span></div><span className="settings-row-value">{email || '—'}</span></div>
-              <div className="settings-row"><div className="settings-row-info"><span className="settings-row-title">Redo onboarding</span><span className="settings-row-desc">Reset your profile and answer questions again</span></div><button className="settings-action-btn" onClick={() => setShowResetConfirm(true)}>Reset</button></div>
+              <div className="settings-row"><div className="settings-row-info"><span className="settings-row-title">Redo onboarding</span><span className="settings-row-desc">Reset your voice profile and answer questions again</span></div><button className="settings-action-btn" onClick={() => setShowResetConfirm(true)}>Reset</button></div>
               <div className="settings-row"><div className="settings-row-info"><span className="settings-row-title">Log out</span><span className="settings-row-desc">Sign out of your account</span></div><button className="settings-action-btn danger" onClick={handleLogout}>Log out</button></div>
-              <div className="settings-row">
-                <div className="settings-row-info"><span className="settings-row-title">Delete account</span><span className="settings-row-desc">Permanently delete your account and all your data</span></div>
-                <button className="settings-action-btn danger" onClick={() => setShowDeleteConfirm(true)}>Delete account</button>
-              </div>
+              <div className="settings-row"><div className="settings-row-info"><span className="settings-row-title">Delete account</span><span className="settings-row-desc">Permanently delete your account and all your data</span></div><button className="settings-action-btn danger" onClick={() => setShowDeleteConfirm(true)}>Delete account</button></div>
             </div>
             <div className="section-divider" />
             <div className="settings-group">
@@ -889,112 +799,94 @@ export default function Dump() {
               <div className="policy-block"><h3 className="policy-heading">Acceptable use</h3><p className="policy-text">DumpPost is designed to help you create authentic LinkedIn content from your own thoughts.</p></div>
               <div className="policy-block"><h3 className="policy-heading">Prohibited use</h3><p className="policy-text">Do not use DumpPost to generate misleading, harmful, or plagiarized content.</p></div>
               <div className="policy-block"><h3 className="policy-heading">AI generated content</h3><p className="policy-text">Posts are based on your input. You are responsible for reviewing content before publishing.</p></div>
-              <div className="policy-block"><h3 className="policy-heading">Beta terms</h3><p className="policy-text">DumpPost is in beta. Features may change and data may be migrated during this period.</p></div>            </div>
+              <div className="policy-block"><h3 className="policy-heading">Beta terms</h3><p className="policy-text">DumpPost is in beta. Features may change and data may be migrated during this period.</p></div>
+            </div>
           </div>
         )}
 
         {/* ── PRICING ── */}
         {section === 'pricing' && (
-  <div className="section-page">
-    <div className="section-header">
-      <h2 className="section-title">Plans</h2>
-      <p className="section-subtitle">You're in early access. Here's what's coming.</p>
-    </div>
-    <div className="pricing-grid">
-      <div className="pricing-card pricing-card-free">
-        <div className="pricing-card-top">
-          <span className="pricing-plan-name">Beta</span>
-          <span className="pricing-plan-price">Free</span>
-          <span className="pricing-plan-desc">Full access while we're in beta. No card needed, no catch.</span>
-        </div>
-        <div className="pricing-features">
-          <div className="pricing-feature"><i className="ti ti-check" /><span>Unlimited post generation</span></div>
-          <div className="pricing-feature"><i className="ti ti-check" /><span>Personal voice profiling</span></div>
-          <div className="pricing-feature"><i className="ti ti-check" /><span>Post history</span></div>
-          <div className="pricing-feature"><i className="ti ti-check" /><span>Early access to everything we ship</span></div>
-        </div>
-        <div className="pricing-card-footer"><span className="pricing-current-badge">Your current plan</span></div>
-      </div>
-
-      <div className="pricing-card pricing-card-pro">
-        <div className="pricing-card-top">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className="pricing-plan-name">Pro</span>
-            <span className="pro-badge">Coming soon</span>
+          <div className="section-page">
+            <div className="section-header"><h2 className="section-title">Plans</h2><p className="section-subtitle">You're in early access. Here's what's coming.</p></div>
+            <div className="pricing-grid">
+              <div className="pricing-card pricing-card-free">
+                <div className="pricing-card-top">
+                  <span className="pricing-plan-name">Beta</span>
+                  <span className="pricing-plan-price">Free</span>
+                  <span className="pricing-plan-desc">Full access while we're in beta. No card needed, no catch.</span>
+                </div>
+                <div className="pricing-features">
+                  <div className="pricing-feature"><i className="ti ti-check" /><span>Unlimited post generation</span></div>
+                  <div className="pricing-feature"><i className="ti ti-check" /><span>Personal voice profiling</span></div>
+                  <div className="pricing-feature"><i className="ti ti-check" /><span>Post history</span></div>
+                  <div className="pricing-feature"><i className="ti ti-check" /><span>Early access to everything we ship</span></div>
+                </div>
+                <div className="pricing-card-footer"><span className="pricing-current-badge">Your current plan</span></div>
+              </div>
+              <div className="pricing-card pricing-card-pro">
+                <div className="pricing-card-top">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span className="pricing-plan-name">Pro</span>
+                    <span className="pro-badge">Coming soon</span>
+                  </div>
+                  <span className="pricing-plan-price">Launching soon</span>
+                  <span className="pricing-plan-desc">Everything in Beta, plus:</span>
+                </div>
+                <div className="pricing-features">
+                  <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>Multiple voice profiles</span><span className="pro-tag">Pro</span></div>
+                  <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>LinkedIn profile gap analysis</span><span className="pro-tag">Pro</span></div>
+                  <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>Longer memory & smarter outputs</span><span className="pro-tag">Pro</span></div>
+                  <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>Priority support</span><span className="pro-tag">Pro</span></div>
+                </div>
+                <div className="pricing-card-footer">
+                  <button className="settings-action-btn" onClick={async () => {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session?.user) { await supabase.from('users').update({ pro_interest: true }).eq('id', session.user.id); setProInterest(true); }
+                  }} disabled={proInterest}>{proInterest ? "You're on the list ✓" : "Get notified →"}</button>
+                </div>
+              </div>
+            </div>
+            <p style={{ marginTop: '32px', fontSize: '0.78rem', color: 'var(--text-dim)', fontFamily: 'DM Sans, sans-serif', fontWeight: 300 }}>Beta users get locked-in early pricing when Pro launches.</p>
           </div>
-          <span className="pricing-plan-price">Launching soon</span>
-          <span className="pricing-plan-desc">Everything in Beta, plus:</span>
-        </div>
-        <div className="pricing-features">
-          <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>Multiple voice profiles</span><span className="pro-tag">Pro</span></div>
-          <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>LinkedIn profile gap analysis</span><span className="pro-tag">Pro</span></div>
-          <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>Longer memory & smarter outputs</span><span className="pro-tag">Pro</span></div>
-          <div className="pricing-feature pro-locked"><i className="ti ti-lock" /><span>Priority support</span><span className="pro-tag">Pro</span></div>
-        </div>
-        <div className="pricing-card-footer">
-        <button
-          className="settings-action-btn"
-          onClick={async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session?.user) {
-              await supabase.from('users').update({ pro_interest: true }).eq('id', session.user.id);
-              setProInterest(true);
-            }
-          }}
-          disabled={proInterest}
-        >
-          {proInterest ? "You're on the list ✓" : "Get notified →"}
-        </button>        </div>
-      </div>
-    </div>
-    <p style={{ marginTop: '32px', fontSize: '0.78rem', color: 'var(--text-dim)', fontFamily: 'DM Sans, sans-serif', fontWeight: 300 }}>
-      Beta users get locked-in early pricing when Pro launches.
-    </p>
-  </div>
-)}
-
+        )}
       </div>
 
-     {showDeleteConfirm && (
-  <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
-    <div className="modal-box" onClick={e => e.stopPropagation()}>
-      <h3 className="modal-title">Delete account?</h3>
-      <p className="modal-desc">This will permanently delete your account and all your posts. This cannot be undone.</p>
-      <div className="modal-actions">
-        <button className="feedback-btn" onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
-        <button className="feedback-btn reject" onClick={async () => {
-          setShowDeleteConfirm(false);
-          try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session?.user) {
-              const res = await fetch('/api/delete-account', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: session.user.id }) });
-              const data = await res.json();
-              if (data.success) { await supabase.auth.signOut(); localStorage.clear(); router.push('/'); }
-              else alert('Something went wrong. Please try again.');
-            }
-          } catch (e) { console.error(e); alert('Something went wrong.'); }
-        }}>Delete account</button>
-      </div>
-    </div>
-  </div>
-)} 
-{showResetConfirm && (
-  <div className="modal-overlay" onClick={() => setShowResetConfirm(false)}>
-    <div className="modal-box" onClick={e => e.stopPropagation()}>
-      <h3 className="modal-title">Redo onboarding?</h3>
-      <p className="modal-desc">This will reset your voice profile and take you through the questions again. Your post history won't be affected.</p>
-      <div className="modal-actions">
-        <button className="feedback-btn" onClick={() => setShowResetConfirm(false)}>Cancel</button>
-        <button className="feedback-btn reject" onClick={() => {
-          localStorage.removeItem('dp-answers');
-          localStorage.removeItem('dp-type');
-          localStorage.removeItem('dp-name');
-          router.push('/onboarding');
-        }}>Reset & redo</button>
-      </div>
-    </div>
-  </div>
-)}
+      {/* ── MODALS ── */}
+      {showDeleteConfirm && (
+        <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <h3 className="modal-title">Delete account?</h3>
+            <p className="modal-desc">This will permanently delete your account and all your posts. This cannot be undone.</p>
+            <div className="modal-actions">
+              <button className="feedback-btn" onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+              <button className="feedback-btn reject" onClick={async () => {
+                setShowDeleteConfirm(false);
+                try {
+                  const { data: { session } } = await supabase.auth.getSession();
+                  if (session?.user) {
+                    const res = await fetch('/api/delete-account', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: session.user.id }) });
+                    const data = await res.json();
+                    if (data.success) { await supabase.auth.signOut(); localStorage.clear(); router.push('/'); }
+                    else alert('Something went wrong. Please try again.');
+                  }
+                } catch (e) { console.error(e); alert('Something went wrong.'); }
+              }}>Delete account</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showResetConfirm && (
+        <div className="modal-overlay" onClick={() => setShowResetConfirm(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <h3 className="modal-title">Redo onboarding?</h3>
+            <p className="modal-desc">This will reset your voice profile and take you through the questions again. Your post history won't be affected.</p>
+            <div className="modal-actions">
+              <button className="feedback-btn" onClick={() => setShowResetConfirm(false)}>Cancel</button>
+              <button className="feedback-btn reject" onClick={() => { localStorage.removeItem('dp-answers'); localStorage.removeItem('dp-type'); localStorage.removeItem('dp-name'); router.push('/onboarding'); }}>Reset & redo</button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
