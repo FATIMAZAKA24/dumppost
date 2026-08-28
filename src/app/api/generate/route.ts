@@ -473,291 +473,98 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-async function groqCall(
-  messages: { role: string; content: string }[],
-  model = 'openai/gpt-oss-120b',
-  temperature = 0.65,
-  max_completion_tokens = 800,
-  jsonMode = false
-) {
-  const bodyPayload: Record<string, unknown> = {
-    model,
-    messages,
-    temperature,
-    max_completion_tokens,
-  };
-
-  if (jsonMode) {
-    bodyPayload.response_format = { type: 'json_object' };
-  }
-
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(bodyPayload),
-  });
-
-  const data = await res.json();
-
-  if (!res.ok) {
-    console.error('Groq API error:', data);
-    throw new Error(
-      data?.error?.message || `Groq API request failed with status ${res.status}`
-    );
-  }
-
-  const choice = data.choices?.[0];
-  const content = choice?.message?.content?.trim();
-
-  if (!content) {
-    throw new Error(
-      `Groq returned no content. Finish reason: ${choice?.finish_reason || 'unknown'}`
-    );
-  }
-
-  return content;
-}
-
-// ── Anti-AI word filter ──
-const AI_WORDS = [
-  'journey', 'delve', 'landscape', 'leverage', 'foster',
-  'game-changing', 'game changer', 'more than ever', "in today's world",
-  'transformative', "it's worth noting", "it's important to remember",
-  'navigating', 'groundbreaking', 'revolutionary', 'seamless', 'robust',
-  'cutting-edge', 'excited to share', 'humbled', 'thrilled', 'delighted',
-  'powerful tool', 'unlock', 'unleash', 'supercharge', 'skyrocket',
-  'dive deep', 'deep dive', 'at the end of the day', 'move the needle',
-  'circle back', 'synergy', 'impactful', 'actionable', 'holistic',
-];
-
-function applyAntiAIFilter(text: string): string {
-  let result = text;
-  for (const word of AI_WORDS) {
-    const regex = new RegExp(`\\b${word}\\b`, 'gi');
-    if (regex.test(result)) {
-      result = result.replace(regex, `[FLAG:${word}]`);
-    }
-  }
-  return result;
-}
-
-function hasFlags(text: string): boolean {
-  return text.includes('[FLAG:');
-}
-
-function stripFlags(text: string): string {
-  return text.replace(/\[FLAG:[^\]]+\]/gi, (match) => {
-    return match.replace(/\[FLAG:([^\]]+)\]/gi, '$1');
-  });
-}
-
-// ── Post-type classifier (Using fast 8B model) ──
-async function classifyDump(dump: string) {
-  const raw = await groqCall(
-    [
-      {
-        role: 'system',
-        content: `You are a content classifier. Return ONLY a JSON object.`,
-      },
-      {
-        role: 'user',
-        content: `Classify this raw thought dump:
-
-"${dump}"
-
-Post types: story | lesson | opinion | reflection | tutorial | observation | announcement | behind-the-scenes
-
-Return JSON format:
-{
-  "post_type": "one of the types above",
-  "core_message": "one sentence — what is the person actually trying to say?",
-  "core_emotion": "one word — what emotion is underneath this dump?",
-  "suggested_structure": "observation→analysis→question | story→conflict→lesson | opinion→evidence→conclusion | experience→reflection→advice | question→exploration→open-end",
-  "hook_angle": "one sentence — what would make someone stop scrolling?"
-}`,
-      },
-    ],
-    'llama-3.1-8b-instant', // Fast, lightweight model
-    0.2,
-    350, // Small token allocation
-    true
-  );
-
-  try {
-    return JSON.parse(raw.replace(/```json|```/g, '').trim());
-  } catch {
-    return {
-      post_type: 'observation',
-      core_message: dump.slice(0, 100),
-      core_emotion: 'neutral',
-      suggested_structure: 'observation→analysis→question',
-      hook_angle: null,
-    };
-  }
-}
-
-// ── DNA Builders ──
-function buildVoiceBlock(voice: Record<string, unknown>): string {
-  if (!voice || Object.keys(voice).length === 0) return 'No voice data yet.';
-  return [
-    voice.sentence_length && `Sentence length: ${voice.sentence_length}`,
-    voice.paragraph_style && `Paragraph style: ${voice.paragraph_style}`,
-    voice.formality && `Formality: ${voice.formality}`,
-    voice.punctuation_style && `Punctuation: ${voice.punctuation_style}`,
-    voice.emoji_usage && `Emoji usage: ${voice.emoji_usage}`,
-    voice.capitalization && `Capitalization: ${voice.capitalization}`,
-    voice.humor_style && `Humor: ${voice.humor_style}`,
-    voice.intensity && `Intensity: ${voice.intensity}`,
-    voice.contractions_usage && `Contractions: ${voice.contractions_usage}`,
-    voice.vocabulary_complexity && `Vocabulary: ${voice.vocabulary_complexity}`,
-    voice.swearing && `Swearing: ${voice.swearing}`,
-    voice.question_frequency && `Questions: ${voice.question_frequency}`,
-    voice.list_usage && `Lists: ${voice.list_usage}`,
-  ].filter(Boolean).join('\n');
-}
-
-function buildThinkingBlock(thinking: Record<string, unknown>): string {
-  if (!thinking || Object.keys(thinking).length === 0) return 'No thinking pattern data yet.';
-  return [
-    thinking.primary_pattern && `Thinking pattern: ${thinking.primary_pattern}`,
-    thinking.thinking_style && `Thinking style: ${thinking.thinking_style}`,
-    thinking.abstraction_level && `Abstraction level: ${thinking.abstraction_level}`,
-  ].filter(Boolean).join('\n');
-}
-
-function buildLinkedInBlock(linkedin: Record<string, unknown>): string {
-  if (!linkedin || Object.keys(linkedin).length === 0) return 'No LinkedIn preferences yet.';
-  return [
-    linkedin.hook_style && `Hook style: ${linkedin.hook_style}`,
-    linkedin.cta_style && `CTA style: ${linkedin.cta_style}`,
-    linkedin.preferred_length && `Preferred length: ${linkedin.preferred_length}`,
-  ].filter(Boolean).join('\n');
-}
-
 export async function POST(req: NextRequest) {
   try {
     const { dump, userId, previousOutput } = await req.json();
 
-    const [profileRes, userRes, rejectionsRes, editsRes] = await Promise.all([
+    // 1. Fetch only essential user context in parallel
+    const [profileRes, userRes] = await Promise.all([
       supabaseAdmin.from('user_profiles').select('*').eq('user_id', userId).single(),
       supabaseAdmin.from('users').select('name, user_type').eq('id', userId).single(),
-      supabaseAdmin
-        .from('interactions')
-        .select('rejection_reason')
-        .eq('user_id', userId)
-        .eq('user_response', 'rejected')
-        .not('rejection_reason', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(5),
-      supabaseAdmin
-        .from('interactions')
-        .select('generated_output, edits_made')
-        .eq('user_id', userId)
-        .eq('user_response', 'edited')
-        .not('edits_made', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(3),
     ]);
 
     const profile = profileRes.data;
     const user = userRes.data;
-    const rejections = rejectionsRes.data || [];
-    const edits = editsRes.data || [];
 
-    // Run classifier using lightweight model
-    const classification = await classifyDump(dump);
+    // Compact DNA blocks to save token overhead
+    const voiceDNA = profile?.voice_dna || {};
+    const editingRules = (profile?.editing_rules || []).slice(0, 5).join('; ');
+    const avoidRules = (profile?.avoid_rules || []).slice(0, 5).join('; ');
 
-    const voiceDNA = (profile?.voice_dna as Record<string, unknown>) || {};
-    const thinkingDNA = (profile?.thinking_dna as Record<string, unknown>) || {};
-    const linkedinDNA = (profile?.linkedin_dna as Record<string, unknown>) || {};
-    const editingRules: string[] = profile?.editing_rules || [];
-    const avoidRules: string[] = profile?.avoid_rules || [];
+    // 2. Single Master Prompt
+    const systemPrompt = `You are an expert LinkedIn ghostwriter. 
+Analyze the input, classify its intent, and write a high-performing post matching the user's voice DNA.
 
-    const rejectionBlock = rejections.length
-      ? rejections.map((r: { rejection_reason: string }) => `- ${r.rejection_reason}`).join('\n')
-      : null;
+CRITICAL INSTRUCTIONS:
+1. Return ONLY a valid JSON object matching this exact schema:
+{
+  "classification": {
+    "post_type": "story | lesson | opinion | reflection | tutorial | observation",
+    "core_message": "One sentence summary",
+    "core_emotion": "One word emotion",
+    "suggested_structure": "Structure path used"
+  },
+  "post": "The complete, ready-to-post LinkedIn text"
+}
 
-    const editBlock = edits.length
-      ? edits
-          .map(
-            (e: { generated_output: string; edits_made: string }, i: number) =>
-              `Edit ${i + 1}:\nOriginal: ${e.generated_output?.slice(0, 150)}\nChanged to: ${e.edits_made?.slice(0, 150)}`
-          )
-          .join('\n---\n')
-      : null;
-
-    const systemPrompt = `You are a LinkedIn ghostwriter. Write a post that sounds exactly like this person — not like AI, not like a LinkedIn template. Never use overused corporate jargon or hype words.`;
+2. FORBIDDEN WORDS (NEVER USE):
+journey, delve, landscape, leverage, foster, game-changing, transformative, robust, seamless, cutting-edge, excited to share, humbled, thrilled, unleash, supercharge.`;
 
     const userMessage = `
-NAME: ${user?.name || 'Unknown'}
-TYPE: ${user?.user_type || 'Professional'}
+USER: ${user?.name || 'Professional'} (${user?.user_type || 'Working professional'})
+VOICE PREFERENCES: Sentence Length: ${voiceDNA.sentence_length || 'varied'}; Formality: ${voiceDNA.formality || 'conversational'}
+RULES TO FOLLOW: ${editingRules}
+THINGS TO AVOID: ${avoidRules}
 
-━━━ POST TYPE ━━━
-Type: ${classification.post_type}
-Core message: ${classification.core_message}
-Structure to follow: ${classification.suggested_structure}
+THOUGHT DUMP:
+"${dump}"
 
-━━━ VOICE & THINKING DNA ━━━
-${buildVoiceBlock(voiceDNA)}
-${buildThinkingBlock(thinkingDNA)}
-${buildLinkedInBlock(linkedinDNA)}
-
-━━━ RULES LEARNED FROM EDITS & REJECTIONS ━━━
-${editingRules.join('\n')}
-${avoidRules.join('\n')}
-${rejectionBlock ? `Rejection feedback:\n${rejectionBlock}` : ''}
-${editBlock ? `Recent edit examples:\n${editBlock}` : ''}
-
-━━━ THE DUMP ━━━
-${dump}
-
-━━━ OUTPUT REQUIREMENTS ━━━
-- Follow Voice DNA rules.
-- Keep output between 150-250 words.
-- Do not invent facts outside the dump.
-- Output ONLY the finished post text.
-
-${previousOutput ? `PREVIOUS ATTEMPT TO IMPROVE:\n${previousOutput}` : ''}
+${previousOutput ? `PREVIOUS ATTEMPT (Improve this version):\n${previousOutput}` : ''}
 `.trim();
 
-    // Generate main post with 120B model (Max tokens capped at 800)
-    let post = await groqCall(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
-      ],
-      'openai/gpt-oss-120b',
-      0.65,
-      800
-    );
-
-    // Filter check using 8B model if rewrite is necessary
-    const filtered = applyAntiAIFilter(post);
-    if (hasFlags(filtered)) {
-      post = await groqCall(
-        [
-          {
-            role: 'system',
-            content: `You are an editor. Replace flagged words marked as [FLAG:word] with plain human language. Keep all other text intact.`,
-          },
-          { role: 'user', content: filtered },
+    // 3. One single API call doing everything at once
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-oss-120b',
+        temperature: 0.65,
+        max_completion_tokens: 750,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage },
         ],
-        'llama-3.1-8b-instant',
-        0.3,
-        800
-      );
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      console.error('Groq API Error:', data);
+      throw new Error(data?.error?.message || 'Failed to generate post');
     }
 
-    post = post.replace(/\[FLAG:[^\]]+\]/gi, '').trim();
+    const rawContent = data.choices?.[0]?.message?.content;
+    if (!rawContent) {
+      throw new Error('LLM returned an empty response.');
+    }
 
-    return NextResponse.json({ post, classification });
+    // Parse the single combined output
+    const parsed = JSON.parse(rawContent);
+
+    return NextResponse.json({
+      post: parsed.post,
+      classification: parsed.classification,
+    });
+
   } catch (err) {
-    console.error('Generate error:', err);
+    console.error('Pipeline Error:', err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Something went wrong' },
+      { error: err instanceof Error ? err.message : 'Internal Server Error' },
       { status: 500 }
     );
   }
