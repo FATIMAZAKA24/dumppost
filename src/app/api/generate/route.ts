@@ -43,7 +43,7 @@ async function groqCall(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
+        model: 'qwen/qwen3.6-27b',
         messages,
         temperature,
         max_completion_tokens,
