@@ -6,29 +6,73 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// async function groqCall(
+//   messages: { role: string; content: string }[],
+//   temperature = 0.72,
+//   max_tokens = 1200
+// ) {
+//   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+//     method: 'POST',
+//     headers: {
+//       'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+//       'Content-Type': 'application/json',
+//     },
+//     body: JSON.stringify({
+//       //model: 'llama-3.3-70b-versatile',
+//       model: 'openai/gpt-oss-120b',
+//       messages,
+//       temperature,
+//       max_tokens,
+//     }),
+//   });
+//   const data = await res.json();
+//   return data.choices?.[0]?.message?.content?.trim() || '';
+// }
 async function groqCall(
   messages: { role: string; content: string }[],
   temperature = 0.72,
   max_tokens = 1200
 ) {
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      //model: 'llama-3.3-70b-versatile',
-      model: 'openai/gpt-oss-120b',
-      messages,
-      temperature,
-      max_tokens,
-    }),
-  });
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content?.trim() || '';
-}
+  const res = await fetch(
+    'https://api.groq.com/openai/v1/chat/completions',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-oss-120b',
+        messages,
+        temperature,
+        max_tokens,
+      }),
+    }
+  );
 
+  const data = await res.json();
+
+  if (!res.ok) {
+    console.error('Groq API error:', {
+      status: res.status,
+      data,
+    });
+
+    throw new Error(
+      data?.error?.message ||
+      `Groq API request failed with status ${res.status}`
+    );
+  }
+
+  const content = data.choices?.[0]?.message?.content?.trim();
+
+  if (!content) {
+    console.error('Groq returned no content:', data);
+    throw new Error('Groq returned no generated content');
+  }
+
+  return content;
+}
 // ── Anti-AI word filter ──
 const AI_WORDS = [
   'journey', 'delve', 'landscape', 'leverage', 'foster',
@@ -394,7 +438,16 @@ ${previousOutput ? `━━━ PREVIOUS VERSION — IMPROVE DON'T REWRITE ━━�
     return NextResponse.json({ post, classification });
 
   } catch (err) {
-    console.error('Generate error:', err);
-    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
-  }
+  console.error('Generate error:', err);
+
+  const message =
+    err instanceof Error
+      ? err.message
+      : 'Something went wrong';
+
+  return NextResponse.json(
+    { error: message },
+    { status: 500 }
+  );
+}
 }
