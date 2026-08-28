@@ -32,7 +32,7 @@ const supabaseAdmin = createClient(
 async function groqCall(
   messages: { role: string; content: string }[],
   temperature = 0.72,
-  max_tokens = 6000
+  max_completion_tokens = 6000
 ) {
   const res = await fetch(
     'https://api.groq.com/openai/v1/chat/completions',
@@ -46,7 +46,7 @@ async function groqCall(
         model: 'openai/gpt-oss-120b',
         messages,
         temperature,
-        max_tokens,
+        max_completion_tokens,
         include_reasoning: false,
       }),
     }
