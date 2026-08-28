@@ -147,9 +147,14 @@ export default function Dump() {
         }),
       });
       const data = await res.json();
-      if (data.error) {
-        setOutput('Something went wrong. Please try again.');
-      } else {
+      if (!res.ok || data.error) {
+  console.error('Generate API error:', data);
+
+  setOutput(
+    data.error || 'Something went wrong. Please try again.'
+  );
+  return;
+} else {
         setOutput(data.post);
         if (session?.user) {
           const newVersionGroup = previousOutput ? versionGroup : crypto.randomUUID();
@@ -167,9 +172,15 @@ export default function Dump() {
           if (interaction) setCurrentInteractionId(interaction.id);
         }
       }
-    } catch {
-      setOutput('Something went wrong. Please try again.');
-    }
+    } catch (err) {
+  console.error('Generate request failed:', err);
+
+  setOutput(
+    err instanceof Error
+      ? err.message
+      : 'Something went wrong. Please try again.'
+  );
+}
     setLoading(false);
   };
 
