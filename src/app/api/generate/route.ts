@@ -28,6 +28,7 @@ const supabaseAdmin = createClient(
 //   const data = await res.json();
 //   return data.choices?.[0]?.message?.content?.trim() || '';
 // }
+
 async function groqCall(
   messages: { role: string; content: string }[],
   temperature = 0.72,
@@ -46,6 +47,7 @@ async function groqCall(
         messages,
         temperature,
         max_tokens,
+        include_reasoning: false,
       }),
     }
   );
@@ -53,10 +55,7 @@ async function groqCall(
   const data = await res.json();
 
   if (!res.ok) {
-    console.error('Groq API error:', {
-      status: res.status,
-      data,
-    });
+    console.error('Groq API error:', data);
 
     throw new Error(
       data?.error?.message ||
@@ -64,15 +63,28 @@ async function groqCall(
     );
   }
 
-  const content = data.choices?.[0]?.message?.content?.trim();
+  const choice = data.choices?.[0];
+
+  console.log('Groq response:', {
+    finish_reason: choice?.finish_reason,
+    content: choice?.message?.content,
+    reasoning: choice?.message?.reasoning,
+    usage: data.usage,
+  });
+
+  const content = choice?.message?.content?.trim();
 
   if (!content) {
-    console.error('Groq returned no content:', data);
-    throw new Error('Groq returned no generated content');
+    throw new Error(
+      `Groq returned no generated content. Finish reason: ${
+        choice?.finish_reason || 'unknown'
+      }`
+    );
   }
 
   return content;
 }
+
 // ── Anti-AI word filter ──
 const AI_WORDS = [
   'journey', 'delve', 'landscape', 'leverage', 'foster',
