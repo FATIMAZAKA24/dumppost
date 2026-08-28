@@ -32,7 +32,7 @@ const supabaseAdmin = createClient(
 async function groqCall(
   messages: { role: string; content: string }[],
   temperature = 0.72,
-  max_completion_tokens = 1200
+  max_completion_tokens = 1000 // Clamped token budget so Groq doesn't hit length limits
 ) {
   const res = await fetch(
     'https://api.groq.com/openai/v1/chat/completions',
@@ -43,11 +43,11 @@ async function groqCall(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'qwen/qwen3.6-27b',
+        // Active official replacement model on Groq
+        model: 'openai/gpt-oss-120b', 
         messages,
         temperature,
         max_completion_tokens,
-        include_reasoning: false,
       }),
     }
   );
@@ -68,7 +68,6 @@ async function groqCall(
   console.log('Groq response:', {
     finish_reason: choice?.finish_reason,
     content: choice?.message?.content,
-    reasoning: choice?.message?.reasoning,
     usage: data.usage,
   });
 
@@ -410,7 +409,7 @@ ${previousOutput ? `━━━ PREVIOUS VERSION — IMPROVE DON'T REWRITE ━━�
         { role: 'user', content: userMessage },
       ],
       0.65,
-      900
+      1000
     );
 
     if (!post) {
