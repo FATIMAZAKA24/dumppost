@@ -6,29 +6,84 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// async function groqCall(
+//   messages: { role: string; content: string }[],
+//   temperature = 0.72,
+//   max_tokens = 1200
+// ) {
+//   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+//     method: 'POST',
+//     headers: {
+//       'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+//       'Content-Type': 'application/json',
+//     },
+//     body: JSON.stringify({
+//       //model: 'llama-3.3-70b-versatile',
+//       model: 'openai/gpt-oss-120b',
+//       messages,
+//       temperature,
+//       max_tokens,
+//     }),
+//   });
+//   const data = await res.json();
+//   return data.choices?.[0]?.message?.content?.trim() || '';
+// }
+
 async function groqCall(
   messages: { role: string; content: string }[],
   temperature = 0.72,
-  max_tokens = 1200
+  max_completion_tokens = 6000
 ) {
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      //model: 'openai/gpt-oss-120b',
-      messages,
-      temperature,
-      max_tokens,
-    }),
-  });
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content?.trim() || '';
-}
+  const res = await fetch(
+    'https://api.groq.com/openai/v1/chat/completions',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages,
+        temperature,
+        max_completion_tokens,
+        include_reasoning: false,
+      }),
+    }
+  );
 
+  const data = await res.json();
+
+  if (!res.ok) {
+    console.error('Groq API error:', data);
+
+    throw new Error(
+      data?.error?.message ||
+      `Groq API request failed with status ${res.status}`
+    );
+  }
+
+  const choice = data.choices?.[0];
+
+  console.log('Groq response:', {
+    finish_reason: choice?.finish_reason,
+    content: choice?.message?.content,
+    reasoning: choice?.message?.reasoning,
+    usage: data.usage,
+  });
+
+  const content = choice?.message?.content?.trim();
+
+  if (!content) {
+    throw new Error(
+      `Groq returned no generated content. Finish reason: ${
+        choice?.finish_reason || 'unknown'
+      }`
+    );
+  }
+
+  return content;
+}
 
 // ── Anti-AI word filter ──
 const AI_WORDS = [
