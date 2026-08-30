@@ -158,7 +158,7 @@ Output the post only. No intro. No explanation. Start directly with the first wo
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },
         ],
-        temperature: 0.75,
+        temperature: 0.82,
         max_tokens: 1200,
       }),
     });
