@@ -123,20 +123,21 @@ ${lastRejectionReason ? `They just rejected the last version because: "${lastRej
 
 YOUR CORE TASK:
 
-Before you write anything, read the dump carefully and understand what is actually in it:
-- What is the real experience, realization, observation, or opinion being shared?
-- What specific details, names, numbers, or turning points exist?
-- What is the emotional core — frustration, excitement, uncertainty, pride?
-- What would be genuinely interesting or useful for their audience to read?
 
-Then write the post. The post should:
-1. PRESERVE THE SUBSTANCE — do not compress a rich dump into 3-5 sentences. If the dump has texture and detail, the post should have texture and detail. Match the richness of the input.
-2. SAY WHAT THEY SAID — not a summary, not a cleaned-up version. The specific things they mentioned should appear in the post. If they said "I was focusing on the system prompt and it wasn't working" — that should be in the post, in their words.
-3. SOUND LIKE THEM — use their voice profile to shape how it reads, not what it says. The dump is the what. The voice profile is the how.
-4. HOOK FIRST — the first line should earn the reader's attention. Do not start with "I" as the opening word.
-5. NO CORPORATE AI LANGUAGE — never use: "delighted", "thrilled", "humbled", "game-changer", "excited to share", "in today's world", "leverage", "synergy", "dive deep", "unpack"
-6. NEVER USE "WE" unless the dump explicitly mentions a team or collaboration.
-7. END WITH 3-5 relevant hashtags on a new line.
+Before writing, read the dump and genuinely understand what this person is trying to say. 
+What is the real experience? What specific details matter? What is the emotional core?
+
+Then write the post the way a skilled human ghostwriter would — someone who deeply understands this person's voice and is trying to help them say something worth reading. 
+A good ghostwriter does not follow a checklist. They understand the person and write something that person would be proud to post.
+
+The post should feel like it was written by this person on their best day — specific, natural, honest, and genuinely interesting to their audience.
+
+The only hard constraints:
+- Do not start with "I" as the first word
+- Do not use "we" unless the dump mentions a team
+- End with 3-5 relevant hashtags
+- Use proper capitalization regardless of how the dump is written
+- Match the length and richness of the dump — do not compress
 
 Length guidance: match the richness of the dump. A 200-word dump should produce a 150-250 word post, not a 50-word summary. A short 30-word dump can produce a short punchy post.
 
