@@ -6,7 +6,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const MODEL = 'openai/gpt-oss-120b';
+const MODEL = 'qwen/qwen3.6-27b';
 
 type WritingProfile = Record<string, unknown>;
 
@@ -59,7 +59,7 @@ function buildWritingProfileBlock(profile: WritingProfile): string {
 
   add('Formality', 'formality');
   add('Sentence style', 'sentence_style');
-  add('Natural thought flow', 'thought_flow');
+  add('Natural thought flow', 'thought_flow'); //we are asking user for dump;this is debatable
   add('Explanation style', 'explanation_style');
   add('Emotional expression', 'emotional_expression');
   add('Confidence expression', 'confidence_expression');
@@ -67,7 +67,7 @@ function buildWritingProfileBlock(profile: WritingProfile): string {
   addArray('Voice markers', 'voice_markers');
   add('Vocabulary style', 'vocabulary_style');
   add('Paragraph style', 'paragraph_style');
-  add('Punctuation style', 'punctuation_style');
+  add('Punctuation style', 'punctuation_style');//i think we can make this more generalized rather than depending on dump; formatting and capitilzation should be generalized
   add('Capitalization style', 'capitalization_style');
   add('Contraction style', 'contraction_style');
   add('Opinion/stance style', 'stance');
