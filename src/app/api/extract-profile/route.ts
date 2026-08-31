@@ -6,78 +6,172 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const GROQ_MODEL = 'openai/gpt-oss-120b';
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const MODEL = 'openai/gpt-oss-120b';
 
-const employedQuestions = [
-  "What are you working on right now? Explain it like you're texting a friend — don't make it sound impressive.",
-  "What's the most interesting thing you've figured out recently? Could be tiny.",
-  "What's been annoying you or slowing you down lately?",
-  "What's an opinion you have about your field that people might push back on?",
-  "What do you want people to think when they read your posts? Be honest.",
-  "Write me two or three sentences the way you'd normally write — could be about anything at all.",
-];
-
-const studentQuestions = [
-  "What are you learning right now? Explain it like you're texting a friend.",
-  "What's something in your field that surprised or confused you recently?",
-  "What's been the hardest part of where you are right now?",
-  "What's an opinion you have that people in your field might disagree with?",
-  "Who do you want reading your posts and what should they think?",
-  "Write me two or three sentences the way you'd normally write — could be about anything at all.",
-];
-
-const jobseekerQuestions = [
-  "What kind of work do you actually want to be doing? Not the polished answer — the real one.",
-  "What's the most interesting thing you've built or worked on? Explain it simply.",
-  "What's been the hardest part of your search so far?",
-  "What's something about your field that people misunderstand?",
-  "What do you want people to think when they read your posts?",
-  "Write me two or three sentences the way you'd normally write — could be about anything at all.",
-];
+const writingProfileSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    formality: { type: 'string' },
+    sentence_style: { type: 'string' },
+    thought_flow: { type: 'string' },
+    explanation_style: { type: 'string' },
+    emotional_expression: { type: 'string' },
+    confidence_expression: { type: 'string' },
+    hedging_patterns: { type: 'array', items: { type: 'string' } },
+    voice_markers: { type: 'array', items: { type: 'string' } },
+    vocabulary_style: { type: 'string' },
+    paragraph_style: { type: 'string' },
+    punctuation_style: { type: 'string' },
+    capitalization_style: { type: 'string' },
+    contraction_style: { type: 'string' },
+    stance: { type: 'string' },
+    explicit_preferences: { type: 'array', items: { type: 'string' } },
+  },
+  required: [
+    'formality',
+    'sentence_style',
+    'thought_flow',
+    'explanation_style',
+    'emotional_expression',
+    'confidence_expression',
+    'hedging_patterns',
+    'voice_markers',
+    'vocabulary_style',
+    'paragraph_style',
+    'punctuation_style',
+    'capitalization_style',
+    'contraction_style',
+    'stance',
+    'explicit_preferences',
+  ],
+};
 
 const profileSchema = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    domain: { type: 'string' },
-    role: { type: 'string' },
-    project_type: { type: 'string' },
-    baseline_confidence: { type: 'string' },
-    enthusiasm_level: { type: 'string' },
-    technical_depth: { type: 'string' },
-    explanation_style: { type: 'string' },
-    emotional_honesty: { type: 'string' },
-    problem_solving_style: { type: 'string' },
-    vulnerability_level: { type: 'string' },
-    audience: { type: 'string' },
-    posting_goal: { type: 'string' },
-    desired_perception: { type: 'string' },
-    passion_areas: { type: 'string' },
-    sentence_rhythm: { type: 'string' },
-    structure_preference: { type: 'string' },
-    real_vocabulary: { type: 'string' },
-    explicit_preferences: { type: 'string' },
-    personality_type: { type: 'string' },
-    self_awareness: { type: 'string' },
-    ai_tool_relationship: { type: 'string' },
+    professional_context: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        domain: { type: 'string' },
+        role: { type: 'string' },
+      },
+      required: ['domain', 'role'],
+    },
+    writing_profile: writingProfileSchema,
   },
-  required: [
-    'domain', 'role', 'project_type', 'baseline_confidence', 'enthusiasm_level',
-    'technical_depth', 'explanation_style', 'emotional_honesty', 'problem_solving_style',
-    'vulnerability_level', 'audience', 'posting_goal', 'desired_perception',
-    'passion_areas', 'sentence_rhythm', 'structure_preference', 'real_vocabulary',
-    'explicit_preferences', 'personality_type', 'self_awareness', 'ai_tool_relationship',
-  ],
+  required: ['professional_context', 'writing_profile'],
 };
+
+async function extractProfile(conversation: string) {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      reasoning_effort: 'low',
+      temperature: 0.2,
+      max_tokens: 1800,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a writing-profile analyst.
+
+Your job is to learn HOW a person naturally communicates, not to decide WHAT they should post about.
+
+There are two separate outputs:
+
+1. professional_context: basic identity information only. This is stored for the user's profile but is NOT generation content.
+2. writing_profile: observable communication behavior that can help another writer imitate the person's natural way of expressing thoughts.
+
+IMPORTANT:
+- Do not infer personality types, intelligence, confidence as a personality trait, or psychological characteristics unless they are directly expressed as writing behavior.
+- Do not turn topics mentioned by the person into writing-style attributes.
+- Do not put technologies, projects, employers, industries, interests, or career goals into voice_markers or vocabulary_style unless they are genuinely linguistic habits. Domain vocabulary is NOT voice.
+- Do not invent phrases the person did not use.
+- Question 6 is the strongest voice evidence because it is explicitly a free-writing sample. Use questions 1-5 mainly to corroborate patterns.
+- If evidence is weak, say so rather than guessing.
+- The writing profile should describe observable behavior in plain language, not abstract labels.
+- voice_markers and hedging_patterns should contain short phrases actually present in the answers, not invented examples.
+- Keep arrays short: maximum 5 items each.
+
+The writing profile will later be given to a separate generation call. It must answer: 'How should this person sound?' It must NOT answer: 'What should this person talk about?'`,
+        },
+        {
+          role: 'user',
+          content: `Analyze these onboarding answers.
+
+${conversation}
+
+QUESTION 6 IS THE PRIMARY VOICE SAMPLE.
+Do not copy its topic into the profile. Study its language, rhythm, phrasing, punctuation, and naturalness.
+
+For every writing_profile field, use only evidence supported by the answers. Prefer a concrete behavioral description over a one-word label.`,
+        },
+      ],
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'dumppost_profile',
+          strict: true,
+          schema: profileSchema,
+        },
+      },
+    }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    console.error('Groq profile extraction error:', data);
+    throw new Error(data?.error?.message || 'Profile extraction failed');
+  }
+
+  const raw = data.choices?.[0]?.message?.content;
+  if (!raw) throw new Error('Groq returned no profile content');
+
+  return JSON.parse(raw);
+}
 
 export async function POST(req: NextRequest) {
   try {
     const { userId, answers, userType } = await req.json();
 
     if (!userId || !Array.isArray(answers) || answers.length === 0) {
-      return NextResponse.json({ error: 'Missing userId or onboarding answers' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing onboarding data' }, { status: 400 });
     }
+
+    const employedQuestions = [
+      "What are you working on right now? Explain it like you're texting a friend — don't make it sound impressive.",
+      "What's the most interesting thing you've figured out recently? Could be tiny.",
+      "What's been annoying you or slowing you down lately?",
+      "What's an opinion you have about your field that people might push back on?",
+      "What do you want people to think when they read your posts? Be honest.",
+      "Write a short paragraph the way you'd actually text or explain something to someone. Don't try to sound professional. Don't worry about grammar. Just write naturally.",
+    ];
+
+    const studentQuestions = [
+      "What are you learning right now? Explain it like you're texting a friend.",
+      "What's something in your field that surprised or confused you recently?",
+      "What's been the hardest part of where you are right now?",
+      "What's an opinion you have that people in your field might disagree with?",
+      "Who do you want reading your posts and what should they think?",
+      "Write a short paragraph the way you'd actually text or explain something to someone. Don't try to sound professional. Don't worry about grammar. Just write naturally.",
+    ];
+
+    const jobseekerQuestions = [
+      "What kind of work do you actually want to be doing? Not the polished answer — the real one.",
+      "What's the most interesting thing you've built or worked on? Explain it simply.",
+      "What's been the hardest part of your search so far?",
+      "What's something about your field that people misunderstand?",
+      "What do you want people to think when they read your posts?",
+      "Write a short paragraph the way you'd actually text or explain something to someone. Don't try to sound professional. Don't worry about grammar. Just write naturally.",
+    ];
 
     const questions =
       userType === 'student' ? studentQuestions :
@@ -85,110 +179,45 @@ export async function POST(req: NextRequest) {
       employedQuestions;
 
     const conversation = answers
-      .map((answer: string, index: number) => `Q: ${questions[index] || `Question ${index + 1}`}\nA: ${answer}`)
+      .map((answer: string, index: number) => `QUESTION ${index + 1}: ${questions[index] || ''}\nANSWER: ${answer}`)
       .join('\n\n');
 
-    const groqResponse = await fetch(GROQ_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: GROQ_MODEL,
-        messages: [
-          {
-            role: 'system',
-            content: `You are DumpPost's user-profile extractor.
-
-Read the user's onboarding answers holistically and extract a compact, stable profile that will be reused every time a LinkedIn post is generated.
-
-Extract only information that is supported by the answers. These are profile attributes, not instructions for writing a specific post. Do not invent facts. If something is unclear, return "unknown".
-
-The most important signal for writing style is the user's own wording, especially the final free-writing answer. Do not confuse the length of an onboarding answer with their normal writing length.
-
-Return ONLY the requested JSON object.`,
-          },
-          {
-            role: 'user',
-            content: `Extract the following profile attributes from these onboarding answers.
-
-ONBOARDING:
-${conversation}
-
-ATTRIBUTE DEFINITIONS:
-- domain: field or industry
-- role: job title, professional role, or student status
-- project_type: kind of technical/work activity they commonly do
-- baseline_confidence: high, medium, or low based on how confidently they describe their work
-- enthusiasm_level: high, medium, or low based on genuine excitement in their answers
-- technical_depth: high, medium, or low based on the technical specificity of their language
-- explanation_style: simple, technical, story-driven, analytical, conversational, etc.
-- emotional_honesty: high, medium, or low based on how openly they discuss uncertainty/frustration/emotion
-- problem_solving_style: how they naturally approach problems
-- vulnerability_level: high, medium, or low
-- audience: who they want reading their posts
-- posting_goal: what they want LinkedIn to achieve for them
-- desired_perception: how they want to be perceived
-- passion_areas: subjects they genuinely care about
-- sentence_rhythm: short-punchy, long-flowing, or mixed
-- structure_preference: how they naturally develop an idea
-- real_vocabulary: distinctive words/phrases they actually use; do not substitute polished synonyms
-- explicit_preferences: explicit requests or dislikes about their content
-- personality_type: analytical, storyteller, straight-shooter, reflective, etc.; only if supported by the answers
-- self_awareness: how aware they appear to be of their work and communication style
-- ai_tool_relationship: how comfortable/familiar they appear to be with AI tools
-
-Return all 21 attributes.`,
-          },
-        ],
-        temperature: 0.2,
-        reasoning_effort: 'low',
-        response_format: {
-          type: 'json_schema',
-          json_schema: {
-            name: 'user_profile',
-            strict: true,
-            schema: profileSchema,
-          },
-        },
-        max_tokens: 1200,
-      }),
-    });
-
-    const data = await groqResponse.json();
-
-    if (!groqResponse.ok) {
-      console.error('Groq profile extraction error:', data);
-      return NextResponse.json({ error: 'Profile extraction failed', details: data }, { status: 500 });
-    }
-
-    const raw = data.choices?.[0]?.message?.content?.trim();
-    if (!raw) {
-      console.error('Groq returned no profile content:', JSON.stringify(data));
-      return NextResponse.json({ error: 'No profile extracted' }, { status: 500 });
-    }
-
-    const signals = JSON.parse(raw);
+    const extracted = await extractProfile(conversation);
 
     const { error } = await supabaseAdmin
       .from('user_profiles')
       .upsert({
         user_id: userId,
-        ...signals,
         onboarding_answers: answers,
         onboarding_questions: questions,
         user_type: userType,
+        professional_context: extracted.professional_context,
+        writing_profile: extracted.writing_profile,
+        profile_version: 3,
+        // Clear the old V2 profile so it cannot accidentally be used later.
+        voice_dna: {},
+        thinking_dna: {},
+        linkedin_dna: {},
+        editing_rules: [],
+        avoid_rules: [],
+        memory: {},
       }, { onConflict: 'user_id' });
 
     if (error) {
-      console.error('Supabase profile save error:', error);
-      return NextResponse.json({ error: 'Failed to save profile', details: error }, { status: 500 });
+      console.error('Supabase profile upsert error:', error);
+      return NextResponse.json({ error: 'Failed to save profile' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, signals });
+    return NextResponse.json({
+      success: true,
+      professional_context: extracted.professional_context,
+      writing_profile: extracted.writing_profile,
+    });
   } catch (err) {
     console.error('Extract profile error:', err);
-    return NextResponse.json({ error: 'Failed to extract profile' }, { status: 500 });
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Failed to extract profile' },
+      { status: 500 }
+    );
   }
 }

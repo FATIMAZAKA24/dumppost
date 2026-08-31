@@ -6,8 +6,75 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const GROQ_MODEL = 'openai/gpt-oss-120b';
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const MODEL = 'openai/gpt-oss-120b';
+
+type WritingProfile = Record<string, unknown>;
+
+async function groqCall(
+  messages: { role: string; content: string }[],
+  temperature = 0.72,
+  max_tokens = 900
+) {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      reasoning_effort: 'low',
+      messages,
+      temperature,
+      max_tokens,
+    }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    console.error('Groq generation error:', data);
+    throw new Error(data?.error?.message || 'Generation failed');
+  }
+
+  return data.choices?.[0]?.message?.content?.trim() || '';
+}
+
+function buildWritingProfileBlock(profile: WritingProfile): string {
+  if (!profile || Object.keys(profile).length === 0) {
+    return 'No writing profile is available. Follow the dump naturally.';
+  }
+
+  const lines: string[] = [];
+  const add = (label: string, key: string) => {
+    const value = profile[key];
+    if (typeof value === 'string' && value.trim()) lines.push(`${label}: ${value}`);
+  };
+  const addArray = (label: string, key: string) => {
+    const value = profile[key];
+    if (Array.isArray(value) && value.length) {
+      lines.push(`${label}: ${value.join(', ')}`);
+    }
+  };
+
+  add('Formality', 'formality');
+  add('Sentence style', 'sentence_style');
+  add('Natural thought flow', 'thought_flow');
+  add('Explanation style', 'explanation_style');
+  add('Emotional expression', 'emotional_expression');
+  add('Confidence expression', 'confidence_expression');
+  addArray('Hedging patterns', 'hedging_patterns');
+  addArray('Voice markers', 'voice_markers');
+  add('Vocabulary style', 'vocabulary_style');
+  add('Paragraph style', 'paragraph_style');
+  add('Punctuation style', 'punctuation_style');
+  add('Capitalization style', 'capitalization_style');
+  add('Contraction style', 'contraction_style');
+  add('Opinion/stance style', 'stance');
+  addArray('Explicit writing preferences', 'explicit_preferences');
+
+  return lines.join('\n');
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,154 +84,109 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing dump or userId' }, { status: 400 });
     }
 
-    const [profileResult, userResult] = await Promise.all([
-      supabaseAdmin
-        .from('user_profiles')
-        .select(`
-          domain,
-          role,
-          project_type,
-          baseline_confidence,
-          enthusiasm_level,
-          technical_depth,
-          explanation_style,
-          emotional_honesty,
-          problem_solving_style,
-          vulnerability_level,
-          audience,
-          posting_goal,
-          desired_perception,
-          passion_areas,
-          sentence_rhythm,
-          structure_preference,
-          real_vocabulary,
-          explicit_preferences,
-          personality_type,
-          self_awareness,
-          ai_tool_relationship
-        `)
-        .eq('user_id', userId)
-        .single(),
-      supabaseAdmin
-        .from('users')
-        .select('name, user_type')
-        .eq('id', userId)
-        .single(),
-    ]);
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('user_profiles')
+      .select('writing_profile')
+      .eq('user_id', userId)
+      .single();
 
-    if (profileResult.error && profileResult.error.code !== 'PGRST116') {
-      console.error('Profile fetch error:', profileResult.error);
+    if (profileError && profileError.code !== 'PGRST116') {
+      console.error('Profile fetch error:', profileError);
+      return NextResponse.json({ error: 'Failed to load writing profile' }, { status: 500 });
     }
 
-    const profile = profileResult.data;
-    const user = userResult.data;
+    const writingProfile = (profile?.writing_profile as WritingProfile) || {};
 
-    const profileContext = [
-      `Domain: ${profile?.domain || 'unknown'}`,
-      `Role: ${profile?.role || 'unknown'}`,
-      `Project/work type: ${profile?.project_type || 'unknown'}`,
-      `Baseline confidence: ${profile?.baseline_confidence || 'unknown'}`,
-      `Enthusiasm level: ${profile?.enthusiasm_level || 'unknown'}`,
-      `Technical depth: ${profile?.technical_depth || 'unknown'}`,
-      `Explanation style: ${profile?.explanation_style || 'unknown'}`,
-      `Emotional honesty: ${profile?.emotional_honesty || 'unknown'}`,
-      `Problem-solving style: ${profile?.problem_solving_style || 'unknown'}`,
-      `Vulnerability level: ${profile?.vulnerability_level || 'unknown'}`,
-      `Audience: ${profile?.audience || 'professionals'}`,
-      `Posting goal: ${profile?.posting_goal || 'build presence'}`,
-      `Desired perception: ${profile?.desired_perception || 'knowledgeable professional'}`,
-      `Passion areas: ${profile?.passion_areas || 'unknown'}`,
-      `Sentence rhythm: ${profile?.sentence_rhythm || 'mixed'}`,
-      `Structure preference: ${profile?.structure_preference || 'natural progression'}`,
-      `Real vocabulary: ${profile?.real_vocabulary || 'unknown'}`,
-      `Explicit preferences: ${profile?.explicit_preferences || 'none noted'}`,
-      `Personality type: ${profile?.personality_type || 'unknown'}`,
-      `Self-awareness: ${profile?.self_awareness || 'unknown'}`,
-      `AI-tool relationship: ${profile?.ai_tool_relationship || 'unknown'}`,
-    ].join('\n');
+    const systemPrompt = `You are a ghostwriter for LinkedIn.
 
-    const userTypeGuidance =
-      user?.user_type === 'jobseeker'
-        ? 'This person is actively job seeking. Position them as capable and intentional without sounding desperate.'
-        : user?.user_type === 'student'
-        ? 'This person is a student. Keep the post authentic and curious; do not make them sound more senior than they are.'
-        : 'This person is a working professional. Ground the post in real experience and genuine insight.';
+Your job is very narrow:
+Turn the user's raw thought dump into a readable LinkedIn post while preserving the person's natural way of expressing themselves.
 
-    const retryContext = previousOutput
-      ? `\n\nPREVIOUS DRAFT TO IMPROVE:\n${previousOutput}${lastRejectionReason ? `\n\nUSER'S REASON FOR REJECTING IT:\n${lastRejectionReason}` : ''}`
-      : '';
+There are two different sources of information:
 
-    const systemPrompt = `You are DumpPost, a ghostwriter for LinkedIn professionals in technology and adjacent fields.
+1. WRITING PROFILE = HOW the person naturally communicates.
+2. RAW DUMP = WHAT the person is saying right now.
 
-Your job is simple: take the user's raw dump and turn it into a LinkedIn post that sounds like THIS person.
+THE RAW DUMP IS THE ONLY SOURCE OF CONTENT.
 
-Do not sound like generic LinkedIn content. Do not turn the dump into a motivational summary. Preserve the person's actual experience, observations, details, uncertainty, opinions, and vocabulary.
+The writing profile is STYLE ONLY. Never use it to add facts, examples, projects, technologies, people, experiences, opinions, achievements, interests, emotions, or topics that are not present in the dump.
 
-USER PROFILE
-Name: ${user?.name || 'Unknown'}
-${userTypeGuidance}
+If the writing profile mentions a profession, domain, technology, project, interest, audience, or anything else about the person, IGNORE that information as content. It exists only to help you understand the person's communication style.
 
-The following profile was extracted during onboarding. It describes the person and their natural communication style. Use it to shape HOW you write, not to invent WHAT they experienced.
+Do not manufacture specificity.
+Do not make the thought more impressive.
+Do not make the person sound more expert than the dump supports.
+Do not turn a small observation into a large thought-leadership post.
+Do not turn an observation into advice unless the dump contains advice.
+Do not invent a story, setting, dialogue, example, result, lesson, conclusion, or emotional resolution.
 
-${profileContext}
+The goal is not maximum engagement. The goal is: 'This sounds like something this person would actually say.'`;
+
+    const userMessage = `WRITING PROFILE — STYLE ONLY
+${buildWritingProfileBlock(writingProfile)}
+
+IMPORTANT: None of the information above is content. Do not introduce it into the post unless the same information is explicitly present in the raw dump.
+
+RAW DUMP — CONTENT SOURCE
+${dump.trim()}
+
+${previousOutput ? `PREVIOUS VERSION
+${previousOutput}
+
+The previous version was not accepted. Keep only what genuinely worked. Revise it using the current dump as the source of truth. Do not add new content.` : ''}
+
+${lastRejectionReason ? `USER'S CURRENT FEEDBACK
+${lastRejectionReason}
+
+Fix this specific issue without adding content that is not in the dump.` : ''}
 
 WRITING RULES
-1. Preserve the substance of the dump. Do not throw away useful details just to make the post shorter.
-2. Use the person's natural level of technical depth and formality.
-3. Use their real vocabulary where it fits. Do not replace their wording with corporate or polished language.
-4. If the dump expresses uncertainty, frustration, excitement, or a partial realization, preserve that feeling instead of manufacturing certainty.
-5. Do not invent facts, numbers, experiences, opinions, people, results, or lessons.
-6. Start with an attention-worthy first line that fits this person's voice. Do not force a dramatic or clickbait hook.
-7. Do not start the post with the word "I".
-8. Never use generic corporate/AI phrases such as "game-changer", "excited to share", "humbled", "thrilled", "delighted", "in today's world", "leverage", "synergy", "dive deep", or "unpack".
-9. Do not use "we" unless the dump explicitly refers to a team or collaboration.
-10. Let the structure follow the content. Do not force the same hook → lesson → CTA template every time.
-11. Length should be proportional to the richness of the dump. A detailed dump deserves a detailed post; a short dump can be short.
-12. End with 3–5 relevant hashtags on a new line.
-13. Output ONLY the LinkedIn post. No explanation, title, preamble, or commentary.${retryContext}`;
+- Preserve the central thought and meaning of the dump.
+- Preserve the person's level of certainty. If they say 'I think', 'I feel', or sound unsure, do not turn it into certainty.
+- Preserve meaningful personal language where it sounds natural.
+- You may clean obvious grammar problems and remove accidental repetition.
+- You may organize the thought into readable paragraphs.
+- Do not add a hook formula just because this is LinkedIn.
+- Do not force a dramatic opening.
+- Do not force a conclusion.
+- Do not add a CTA.
+- Do not add hashtags unless hashtags are explicitly present in the dump.
+- Do not add bullet points unless the dump itself is clearly a list.
+- Do not automatically add emojis.
+- Do not use corporate/AI filler such as 'game-changer', 'delve', 'leverage', 'in today's world', 'transformative', 'excited to share', or similar phrases.
+- Do not start with 'I' unless starting with 'I' is the most natural way to preserve the person's thought.
+- Do not copy obvious transcription errors just to imitate them.
+- Keep the output proportionate to the dump. A short dump should produce a short post. Do not expand a short thought into a 150–250 word essay.
+- As a rough guide, for a dump under 80 words, aim for roughly 50–100 words. For longer dumps, expand only as much as needed to make the existing thought readable.
 
-    const groqResponse = await fetch(GROQ_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: GROQ_MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          {
-            role: 'user',
-            content: `Here is my raw dump. Turn it into the post:\n\n${dump.trim()}`,
-          },
-        ],
-        temperature: 0.75,
-        reasoning_effort: 'low',
-        max_tokens: 1200,
-      }),
-    });
+Before writing, silently check:
+1. Is every factual/content claim in the post supported by the dump?
+2. Did I accidentally use the writing profile as content?
+3. Did I add a lesson, example, setting, technology, project, or conclusion that the person did not give me?
+4. Does the length match the amount of thought in the dump?
+5. Does this sound like a person expressing their own thought rather than a LinkedIn ghostwriter performing 'LinkedIn'? 
 
-    const data = await groqResponse.json();
+Output ONLY the post.`;
 
-    if (!groqResponse.ok) {
-      console.error('Groq generation error:', data);
-      return NextResponse.json({ error: 'Generation failed', details: data }, { status: 500 });
-    }
+    const post = await groqCall(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
+      0.72,
+      900
+    );
 
-    const raw = data.choices?.[0]?.message?.content?.trim();
-    if (!raw) {
-      console.error('Groq returned no generated content:', JSON.stringify(data));
+    if (!post) {
       return NextResponse.json({ error: 'No post generated' }, { status: 500 });
     }
 
-    const post = raw
-      .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
-      .replace(/<think>[\s\S]*?<\/think>/gi, '')
-      .trim();
-
-    return NextResponse.json({ post, reasoning: null });
+    return NextResponse.json({ post });
   } catch (err) {
     console.error('Generate error:', err);
-    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Something went wrong' },
+      { status: 500 }
+    );
   }
 }

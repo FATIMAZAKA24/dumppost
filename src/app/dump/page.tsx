@@ -63,6 +63,7 @@ export default function Dump() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const router = useRouter();
+  const [session, setSession] = useState<any>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -70,8 +71,7 @@ export default function Dump() {
     setDark(saved === 'dark');
     document.documentElement.setAttribute('data-theme', saved);
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+        if (!session) {
         router.push('/login');
       } else {
         if (session?.user?.email) setEmail(session.user.email);
@@ -105,8 +105,7 @@ export default function Dump() {
   const loadHistory = async () => {
     setHistoryLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
+        if (session?.user) {
         const { data } = await supabase
           .from('interactions')
           .select('id, generated_output, raw_input, created_at, user_response, version_group, rejection_reason')
@@ -126,8 +125,7 @@ export default function Dump() {
     setOutput('');
     setCurrentInteractionId(null);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch('/api/generate', {
+        const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -381,8 +379,7 @@ export default function Dump() {
                       <div className="dump-feedback">
                         <button className="feedback-btn" onClick={async () => {
                         handleCopy();
-                        const { data: { session } } = await supabase.auth.getSession();
-                        if (currentInteractionId) await supabase.from('interactions').update({ user_response: 'accepted' }).eq('id', currentInteractionId);
+                                            if (currentInteractionId) await supabase.from('interactions').update({ user_response: 'accepted' }).eq('id', currentInteractionId);
                       }}>{copied ? '✓ Copied' : 'Copy'}</button>
                         <button className="feedback-btn" onClick={() => { setIsEditing(true); setEditedOutput(output); }}>✎ Refine</button>
                         <button className="feedback-btn reject" onClick={() => { setShowRetryPanel(true); setSelectedReason(''); setCustomReason(''); }}>↺ Retry</button>
@@ -529,8 +526,7 @@ export default function Dump() {
                       <div className="mobile-post-actions">
                         <button className="mobile-act-btn" onClick={async () => {
                         handleCopy();
-                        const { data: { session } } = await supabase.auth.getSession();
-                        if (currentInteractionId) await supabase.from('interactions').update({ user_response: 'accepted' }).eq('id', currentInteractionId);
+                                            if (currentInteractionId) await supabase.from('interactions').update({ user_response: 'accepted' }).eq('id', currentInteractionId);
                       }}>
                           <i className="ti ti-copy" />{copied ? 'Copied' : 'Copy'}
                         </button>
@@ -622,8 +618,7 @@ export default function Dump() {
                       <button className="feedback-btn" onClick={async () => {
                         if (!editNameValue.trim()) return;
                         setProfileSaving(true);
-                        const { data: { session } } = await supabase.auth.getSession();
-                        if (session?.user) {
+                                            if (session?.user) {
                           await supabase.from('users').update({ name: editNameValue.trim() }).eq('id', session.user.id);
                           localStorage.setItem('dp-name', editNameValue.trim());
                           setName(editNameValue.trim());
@@ -654,8 +649,7 @@ export default function Dump() {
                       <button className="feedback-btn" onClick={async () => {
                         if (!editTypeValue) return;
                         setProfileSaving(true);
-                        const { data: { session } } = await supabase.auth.getSession();
-                        if (session?.user) {
+                                            if (session?.user) {
                           await supabase.from('users').update({ user_type: editTypeValue }).eq('id', session.user.id);
                           localStorage.setItem('dp-type', editTypeValue);
                         }
@@ -703,8 +697,7 @@ export default function Dump() {
                             const currentAnswers = JSON.parse(localStorage.getItem('dp-answers') || '[]');
                             currentAnswers[i] = editAnswerValue.trim();
                             localStorage.setItem('dp-answers', JSON.stringify(currentAnswers));
-                            const { data: { session } } = await supabase.auth.getSession();
-                            if (session?.user) {
+                                                    if (session?.user) {
                               await supabase.from('user_profiles').update({ onboarding_answers: currentAnswers }).eq('user_id', session.user.id);
                               fetch('/api/extract-profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: session.user.id, answers: currentAnswers, userType: localStorage.getItem('dp-type') || 'employed' }) }).catch(console.error);
                             }
@@ -828,8 +821,7 @@ export default function Dump() {
                 </div>
                 <div className="pricing-card-footer">
                   <button className="settings-action-btn" onClick={async () => {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    if (session?.user) { await supabase.from('users').update({ pro_interest: true }).eq('id', session.user.id); setProInterest(true); }
+                                    if (session?.user) { await supabase.from('users').update({ pro_interest: true }).eq('id', session.user.id); setProInterest(true); }
                   }} disabled={proInterest}>{proInterest ? "You're on the list ✓" : "Get notified →"}</button>
                 </div>
               </div>
@@ -850,8 +842,7 @@ export default function Dump() {
               <button className="feedback-btn reject" onClick={async () => {
                 setShowDeleteConfirm(false);
                 try {
-                  const { data: { session } } = await supabase.auth.getSession();
-                  if (session?.user) {
+                                if (session?.user) {
                     const res = await fetch('/api/delete-account', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: session.user.id }) });
                     const data = await res.json();
                     if (data.success) { await supabase.auth.signOut(); localStorage.clear(); router.push('/'); }
