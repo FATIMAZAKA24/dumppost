@@ -15,15 +15,6 @@ function RetryMicButton({ onTranscript }: { onTranscript: (text: string) => void
   );
 }
 
-// Shared learning call — fire and forget
-function triggerLearnFromEdit(userId: string, originalPost: string, editedPost: string) {
-  fetch('/api/learn-from-edit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, originalPost, editedPost }),
-  }).catch(console.error);
-}
-
 export default function Dump() {
   const { isRecording, transcribing, handleMicToggle } = useVoiceInput((text) => {
     setInput(prev => prev ? prev + '\n' + text : text);
@@ -147,14 +138,9 @@ export default function Dump() {
         }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) {
-  console.error('Generate API error:', data);
-
-  setOutput(
-    data.error || 'Something went wrong. Please try again.'
-  );
-  return;
-} else {
+      if (data.error) {
+        setOutput('Something went wrong. Please try again.');
+      } else {
         setOutput(data.post);
         if (session?.user) {
           const newVersionGroup = previousOutput ? versionGroup : crypto.randomUUID();
@@ -172,15 +158,9 @@ export default function Dump() {
           if (interaction) setCurrentInteractionId(interaction.id);
         }
       }
-    } catch (err) {
-  console.error('Generate request failed:', err);
-
-  setOutput(
-    err instanceof Error
-      ? err.message
-      : 'Something went wrong. Please try again.'
-  );
-}
+    } catch {
+      setOutput('Something went wrong. Please try again.');
+    }
     setLoading(false);
   };
 
@@ -211,20 +191,6 @@ export default function Dump() {
       await supabase.from('interactions').update({ user_response: 'rejected', rejection_reason: reason }).eq('id', currentInteractionId);
     }
 
-    // ── Background learning from rejection ──
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.user && reason) {
-    fetch('/api/learn-from-rejection', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: session.user.id,
-        rejectionReason: reason,
-        generatedPost: output,
-      }),
-    }).catch(console.error);
-  }
-
     setLastRejectionReason(reason);
     setShowRetryPanel(false);
     setSelectedReasons([]);
@@ -238,21 +204,15 @@ export default function Dump() {
   // Shared edit save handler — used by both desktop and mobile
   const handleSaveEdit = async () => {
     navigator.clipboard.writeText(editedOutput);
-    const originalPost = output;
     setOutput(editedOutput);
     setIsEditing(false);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
 
-    const { data: { session } } = await supabase.auth.getSession();
     if (currentInteractionId) {
       await supabase.from('interactions')
         .update({ user_response: 'edited', edits_made: editedOutput })
         .eq('id', currentInteractionId);
-    }
-    // Background learning — fire and forget
-    if (session?.user) {
-      triggerLearnFromEdit(session.user.id, originalPost, editedOutput);
     }
   };
 
@@ -423,13 +383,6 @@ export default function Dump() {
                         handleCopy();
                         const { data: { session } } = await supabase.auth.getSession();
                         if (currentInteractionId) await supabase.from('interactions').update({ user_response: 'accepted' }).eq('id', currentInteractionId);
-                        if (session?.user) {
-                          fetch('/api/update-memory', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ userId: session.user.id, post: output, postType: null }),
-                          }).catch(console.error);
-                        }
                       }}>{copied ? '✓ Copied' : 'Copy'}</button>
                         <button className="feedback-btn" onClick={() => { setIsEditing(true); setEditedOutput(output); }}>✎ Refine</button>
                         <button className="feedback-btn reject" onClick={() => { setShowRetryPanel(true); setSelectedReason(''); setCustomReason(''); }}>↺ Retry</button>
@@ -578,13 +531,6 @@ export default function Dump() {
                         handleCopy();
                         const { data: { session } } = await supabase.auth.getSession();
                         if (currentInteractionId) await supabase.from('interactions').update({ user_response: 'accepted' }).eq('id', currentInteractionId);
-                        if (session?.user) {
-                          fetch('/api/update-memory', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ userId: session.user.id, post: output, postType: null }),
-                          }).catch(console.error);
-                        }
                       }}>
                           <i className="ti ti-copy" />{copied ? 'Copied' : 'Copy'}
                         </button>

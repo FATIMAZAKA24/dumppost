@@ -6,159 +6,140 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+const GROQ_MODEL = 'openai/gpt-oss-120b';
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
 export async function POST(req: NextRequest) {
   try {
     const { dump, userId, previousOutput, lastRejectionReason } = await req.json();
 
-    // Parallel fetch — all DB calls at once
-    const [profileResult, userResult, rejectionsResult, editsResult, editingRulesResult] =
-      await Promise.all([
-        supabaseAdmin.from('user_profiles').select('*').eq('user_id', userId).single(),
-        supabaseAdmin.from('users').select('name, user_type').eq('id', userId).single(),
-        supabaseAdmin
-          .from('interactions')
-          .select('rejection_reason')
-          .eq('user_id', userId)
-          .eq('user_response', 'rejected')
-          .not('rejection_reason', 'is', null)
-          .order('created_at', { ascending: false })
-          .limit(20),
-        supabaseAdmin
-          .from('interactions')
-          .select('generated_output, edits_made')
-          .eq('user_id', userId)
-          .eq('user_response', 'edited')
-          .not('edits_made', 'is', null)
-          .order('created_at', { ascending: false })
-          .limit(20),
-        supabaseAdmin
-          .from('editing_rules')
-          .select('rule')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(30),
-      ]);
+    if (!dump?.trim() || !userId) {
+      return NextResponse.json({ error: 'Missing dump or userId' }, { status: 400 });
+    }
+
+    const [profileResult, userResult] = await Promise.all([
+      supabaseAdmin
+        .from('user_profiles')
+        .select(`
+          domain,
+          role,
+          project_type,
+          baseline_confidence,
+          enthusiasm_level,
+          technical_depth,
+          explanation_style,
+          emotional_honesty,
+          problem_solving_style,
+          vulnerability_level,
+          audience,
+          posting_goal,
+          desired_perception,
+          passion_areas,
+          sentence_rhythm,
+          structure_preference,
+          real_vocabulary,
+          explicit_preferences,
+          personality_type,
+          self_awareness,
+          ai_tool_relationship
+        `)
+        .eq('user_id', userId)
+        .single(),
+      supabaseAdmin
+        .from('users')
+        .select('name, user_type')
+        .eq('id', userId)
+        .single(),
+    ]);
+
+    if (profileResult.error && profileResult.error.code !== 'PGRST116') {
+      console.error('Profile fetch error:', profileResult.error);
+    }
 
     const profile = profileResult.data;
     const user = userResult.data;
-    const rejections = rejectionsResult.data;
-    const edits = editsResult.data;
-    const editingRules = editingRulesResult.data;
 
-    const voiceDNA = profile?.voice_dna || {};
-    const thinkingDNA = profile?.thinking_dna || {};
-    const linkedinDNA = profile?.linkedin_dna || {};
-    const memory = profile?.memory || {};
+    const profileContext = [
+      `Domain: ${profile?.domain || 'unknown'}`,
+      `Role: ${profile?.role || 'unknown'}`,
+      `Project/work type: ${profile?.project_type || 'unknown'}`,
+      `Baseline confidence: ${profile?.baseline_confidence || 'unknown'}`,
+      `Enthusiasm level: ${profile?.enthusiasm_level || 'unknown'}`,
+      `Technical depth: ${profile?.technical_depth || 'unknown'}`,
+      `Explanation style: ${profile?.explanation_style || 'unknown'}`,
+      `Emotional honesty: ${profile?.emotional_honesty || 'unknown'}`,
+      `Problem-solving style: ${profile?.problem_solving_style || 'unknown'}`,
+      `Vulnerability level: ${profile?.vulnerability_level || 'unknown'}`,
+      `Audience: ${profile?.audience || 'professionals'}`,
+      `Posting goal: ${profile?.posting_goal || 'build presence'}`,
+      `Desired perception: ${profile?.desired_perception || 'knowledgeable professional'}`,
+      `Passion areas: ${profile?.passion_areas || 'unknown'}`,
+      `Sentence rhythm: ${profile?.sentence_rhythm || 'mixed'}`,
+      `Structure preference: ${profile?.structure_preference || 'natural progression'}`,
+      `Real vocabulary: ${profile?.real_vocabulary || 'unknown'}`,
+      `Explicit preferences: ${profile?.explicit_preferences || 'none noted'}`,
+      `Personality type: ${profile?.personality_type || 'unknown'}`,
+      `Self-awareness: ${profile?.self_awareness || 'unknown'}`,
+      `AI-tool relationship: ${profile?.ai_tool_relationship || 'unknown'}`,
+    ].join('\n');
 
-    const recentTopics = memory?.recent_topics?.slice(0, 6) || [];
-    const recentHooks = memory?.recent_hooks?.slice(0, 3) || [];
-    const recentHashtags = memory?.recent_hashtags?.slice(0, 6) || [];
-
-    const rejectionContext = rejections?.length
-      ? rejections.map((r: { rejection_reason: string }) => `- ${r.rejection_reason}`).join('\n')
-      : null;
-
-    const editContext = edits?.length
-      ? edits
-          .slice(0, 5)
-          .map(
-            (e: { generated_output: string; edits_made: string }, i: number) =>
-              `Example ${i + 1}:\nBefore: ${e.generated_output?.slice(0, 150)}...\nAfter: ${e.edits_made?.slice(0, 150)}...`
-          )
-          .join('\n\n')
-      : null;
-
-    const learnedRules = editingRules?.length
-      ? editingRules.map((r: { rule: string }) => `- ${r.rule}`).join('\n')
-      : null;
-
-    const userTypeNote =
+    const userTypeGuidance =
       user?.user_type === 'jobseeker'
-        ? 'This person is actively job seeking. Posts should position them as capable and intentional without sounding desperate.'
+        ? 'This person is actively job seeking. Position them as capable and intentional without sounding desperate.'
         : user?.user_type === 'student'
-        ? 'This person is a student. Posts should feel authentic and curious, not like they are trying to seem more senior.'
-        : 'This person is a working professional sharing real experience.';
+        ? 'This person is a student. Keep the post authentic and curious; do not make them sound more senior than they are.'
+        : 'This person is a working professional. Ground the post in real experience and genuine insight.';
 
-    const systemPrompt = `You are a ghostwriter for LinkedIn. Your job is to turn someone's raw, unfiltered thoughts into a post that sounds exactly like them — not like a cleaned-up AI summary, and not like a generic LinkedIn post.
+    const retryContext = previousOutput
+      ? `\n\nPREVIOUS DRAFT TO IMPROVE:\n${previousOutput}${lastRejectionReason ? `\n\nUSER'S REASON FOR REJECTING IT:\n${lastRejectionReason}` : ''}`
+      : '';
 
-The person you are writing for:
+    const systemPrompt = `You are DumpPost, a ghostwriter for LinkedIn professionals in technology and adjacent fields.
+
+Your job is simple: take the user's raw dump and turn it into a LinkedIn post that sounds like THIS person.
+
+Do not sound like generic LinkedIn content. Do not turn the dump into a motivational summary. Preserve the person's actual experience, observations, details, uncertainty, opinions, and vocabulary.
+
+USER PROFILE
 Name: ${user?.name || 'Unknown'}
-${userTypeNote}
+${userTypeGuidance}
 
-Their voice:
-- Sentence length: ${voiceDNA.sentence_length || 'medium'}
-- Formality: ${voiceDNA.formality || 'medium'}
-- Capitalization: ${voiceDNA.capitalization || 'normal'} (NOTE: even if their dump is all-lowercase, LinkedIn posts should use proper capitalization — capitalize the first word of every sentence)
-- Paragraph style: ${voiceDNA.paragraph_style || 'mixed'}
-- Hedging words they use: ${voiceDNA.hedging_words?.join(', ') || 'none noted'}
-- Vocabulary: ${voiceDNA.vocabulary_complexity || 'medium'}
-- Contractions: ${voiceDNA.contractions_usage || 'sometimes'}
-- Emoji: ${voiceDNA.emoji_usage || 'never'}
-- Lists: ${voiceDNA.list_usage || 'rare'}
+The following profile was extracted during onboarding. It describes the person and their natural communication style. Use it to shape HOW you write, not to invent WHAT they experienced.
 
-How they think and structure ideas:
-- Usually starts with: ${thinkingDNA.starts_with || 'observation'}
-- Develops into: ${thinkingDNA.develops_into || 'analysis'}
-- Ends with: ${thinkingDNA.ends_with || 'open thought'}
-- Thinking style: ${thinkingDNA.thinking_style || 'linear'}
+${profileContext}
 
-LinkedIn context:
-- Audience: ${linkedinDNA.audience || 'professionals'}
-- Goal: ${linkedinDNA.posting_goal || 'build presence'}
-- Preferred post types: ${linkedinDNA.preferred_post_types?.join(', ') || 'story, reflection'}
-- Hook style: ${linkedinDNA.hook_style || 'curiosity'}
-- Hashtags: ${linkedinDNA.hashtag_usage || 'minimal'}, style: ${linkedinDNA.hashtag_style || 'niche'}
-- Uses line breaks: ${linkedinDNA.uses_line_breaks ? 'yes' : 'no'}
-- Uses bullet points: ${linkedinDNA.uses_bullet_points ? 'yes' : 'no'}
-- Desired perception: ${linkedinDNA.desired_perception || 'knowledgeable professional'}
+WRITING RULES
+1. Preserve the substance of the dump. Do not throw away useful details just to make the post shorter.
+2. Use the person's natural level of technical depth and formality.
+3. Use their real vocabulary where it fits. Do not replace their wording with corporate or polished language.
+4. If the dump expresses uncertainty, frustration, excitement, or a partial realization, preserve that feeling instead of manufacturing certainty.
+5. Do not invent facts, numbers, experiences, opinions, people, results, or lessons.
+6. Start with an attention-worthy first line that fits this person's voice. Do not force a dramatic or clickbait hook.
+7. Do not start the post with the word "I".
+8. Never use generic corporate/AI phrases such as "game-changer", "excited to share", "humbled", "thrilled", "delighted", "in today's world", "leverage", "synergy", "dive deep", or "unpack".
+9. Do not use "we" unless the dump explicitly refers to a team or collaboration.
+10. Let the structure follow the content. Do not force the same hook → lesson → CTA template every time.
+11. Length should be proportional to the richness of the dump. A detailed dump deserves a detailed post; a short dump can be short.
+12. End with 3–5 relevant hashtags on a new line.
+13. Output ONLY the LinkedIn post. No explanation, title, preamble, or commentary.${retryContext}`;
 
-${recentTopics.length ? `Topics they have posted about recently (avoid repeating): ${recentTopics.join(', ')}` : ''}
-${recentHooks.length ? `Recent hooks they used (do not reuse): ${recentHooks.join(' | ')}` : ''}
-${recentHashtags.length ? `Recent hashtags (avoid reusing the same ones every time): ${recentHashtags.join(', ')}` : ''}
-
-${editContext ? `How they have edited previous posts (your strongest signal for their real voice):\n${editContext}` : ''}
-${learnedRules ? `Specific rules learned from their edits:\n${learnedRules}` : ''}
-${rejectionContext ? `Things they have rejected before — do not repeat these:\n${rejectionContext}` : ''}
-${lastRejectionReason ? `They just rejected the last version because: "${lastRejectionReason}". Fix this specifically.` : ''}
-
-YOUR CORE TASK:
-
-Before you write anything, read the dump carefully and understand what is actually in it:
-- What is the real experience, realization, observation, or opinion being shared?
-- What specific details, names, numbers, or turning points exist?
-- What is the emotional core — frustration, excitement, uncertainty, pride?
-- What would be genuinely interesting or useful for their audience to read?
-
-Then write the post. The post should:
-1. PRESERVE THE SUBSTANCE — do not compress a rich dump into 3-5 sentences. If the dump has texture and detail, the post should have texture and detail. Match the richness of the input.
-2. SAY WHAT THEY SAID — not a summary, not a cleaned-up version. The specific things they mentioned should appear in the post. If they said "I was focusing on the system prompt and it wasn't working" — that should be in the post, in their words.
-3. SOUND LIKE THEM — use their voice profile to shape how it reads, not what it says. The dump is the what. The voice profile is the how.
-4. HOOK FIRST — the first line should earn the reader's attention. Do not start with "I" as the opening word.
-5. NO CORPORATE AI LANGUAGE — never use: "delighted", "thrilled", "humbled", "game-changer", "excited to share", "in today's world", "leverage", "synergy", "dive deep", "unpack"
-6. NEVER USE "WE" unless the dump explicitly mentions a team or collaboration.
-7. END WITH 3-5 relevant hashtags on a new line.
-
-Length guidance: match the richness of the dump. A 200-word dump should produce a 150-250 word post, not a 50-word summary. A short 30-word dump can produce a short punchy post.
-
-${previousOutput ? `Previous version they want improved:\n${previousOutput}\n\nKeep what worked. Fix what they did not like.` : ''}
-
-Output the post only. No intro. No explanation. Start directly with the first word of the post.`;
-
-    const userMessage = `Here is my raw dump:\n\n${dump}`;
-
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const groqResponse = await fetch(GROQ_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-oss-120b',
+        model: GROQ_MODEL,
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage },
+          {
+            role: 'user',
+            content: `Here is my raw dump. Turn it into the post:\n\n${dump.trim()}`,
+          },
         ],
-        temperature: 0.82,
+        temperature: 0.75,
+        reasoning_effort: 'low',
         max_tokens: 1200,
       }),
     });
@@ -166,24 +147,22 @@ Output the post only. No intro. No explanation. Start directly with the first wo
     const data = await groqResponse.json();
 
     if (!groqResponse.ok) {
-      console.error('Groq API error:', data);
+      console.error('Groq generation error:', data);
       return NextResponse.json({ error: 'Generation failed', details: data }, { status: 500 });
     }
 
     const raw = data.choices?.[0]?.message?.content?.trim();
-
     if (!raw) {
+      console.error('Groq returned no generated content:', JSON.stringify(data));
       return NextResponse.json({ error: 'No post generated' }, { status: 500 });
     }
 
-    // Strip any think tags if model outputs them
     const post = raw
-      .replace(/<reasoning>[\s\S]*?<\/reasoning>/g, '')
-      .replace(/<think>[\s\S]*?<\/think>/g, '')
+      .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
+      .replace(/<think>[\s\S]*?<\/think>/gi, '')
       .trim();
 
-    return NextResponse.json({ post });
-
+    return NextResponse.json({ post, reasoning: null });
   } catch (err) {
     console.error('Generate error:', err);
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
