@@ -153,7 +153,7 @@ WRITING RULES
 - Do not use corporate filler: "game-changer", "leverage", "delve", "excited to share"
 - Do not start with "I" as the first word
 - Do not add bullet points unless the dump is clearly a list
-- Length: match the richness of the dump. A detailed dump deserves a full post.
+- Length should serve the thought, not mirror the dump's word count. A short dump can still earn a fuller post if the idea supports being developed through phrasing, rhythm, and flow — that is not the same as adding new content. A long or repetitive dump may be stronger tightened down. Let the idea's own weight decide the length, not how much the user happened to type.
 
 
 Before writing, silently check:
