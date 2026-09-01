@@ -13,7 +13,7 @@ type WritingProfile = Record<string, unknown>;
 async function groqCall(
   messages: { role: string; content: string }[],
   temperature = 0.72,
-  max_tokens = 900
+  max_tokens = 900,
 ) {
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -23,7 +23,7 @@ async function groqCall(
     },
     body: JSON.stringify({
       model: MODEL,
-      reasoning_effort: 'low',
+      reasoning_effort: 'none',
       messages,
       temperature,
       max_tokens,
