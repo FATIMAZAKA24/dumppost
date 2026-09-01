@@ -6,7 +6,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const MODEL = 'openai/gpt-oss-120b';
+const MODEL = 'qwen/qwen3.6-27b';
 
 type WritingProfile = Record<string, unknown>;
 
