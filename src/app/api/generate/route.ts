@@ -141,23 +141,19 @@ ${lastRejectionReason}
 Fix this specific issue without adding content that is not in the dump.` : ''}
 
 WRITING RULES
-- Preserve the central thought and meaning of the dump.
-- Preserve the person's level of certainty. If they say 'I think', 'I feel', or sound unsure, do not turn it into certainty.
-- Preserve meaningful personal language where it sounds natural.
-- You may clean obvious grammar problems and remove accidental repetition.
-- You may organize the thought into readable paragraphs.
-- Do not add a hook formula just because this is LinkedIn.
-- Do not force a dramatic opening.
-- Do not force a conclusion.
-- Do not add a CTA.
-- Do not add hashtags unless hashtags are explicitly present in the dump.
-- Do not add bullet points unless the dump itself is clearly a list.
-- Do not automatically add emojis.
-- Do not use corporate/AI filler such as 'game-changer', 'delve', 'leverage', 'in today's world', 'transformative', 'excited to share', or similar phrases.
-- Do not start with 'I' unless starting with 'I' is the most natural way to preserve the person's thought.
-- Do not copy obvious transcription errors just to imitate them.
-- Keep the output proportionate to the dump. A short dump should produce a short post. Do not expand a short thought into a 150–250 word essay.
-- As a rough guide, for a dump under 80 words, aim for roughly 50–100 words. For longer dumps, expand only as much as needed to make the existing thought readable.
+- Preserve every fact, claim, and opinion from the dump. Never invent.
+- Preserve the person's level of certainty — "i think" stays "I think"
+- Clean grammar and remove repetition
+- Organize into readable paragraphs with natural flow
+- You MAY restructure for narrative clarity — the dump order is not sacred
+- You MAY write a proper opening line that draws from the dump's core idea
+- You MAY write a closing thought if the dump has a natural conclusion
+- Always add 3-5 relevant hashtags at the end
+- Do not use corporate filler: "game-changer", "leverage", "delve", "excited to share"
+- Do not start with "I" as the first word
+- Do not add bullet points unless the dump is clearly a list
+- Length: match the richness of the dump. A detailed dump deserves a full post.
+
 
 Before writing, silently check:
 1. Is every factual/content claim in the post supported by the dump?
