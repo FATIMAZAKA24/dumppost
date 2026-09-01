@@ -3,6 +3,8 @@ import { useVoiceInput } from '@/lib/useVoiceInput';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+const [authChecked, setAuthChecked] = useState(false);
+
 
 type Section = 'workspace' | 'history' | 'profile' | 'settings' | 'tutorials' | 'privacy' | 'usage' | 'pricing';
 
@@ -66,25 +68,26 @@ export default function Dump() {
   const [session, setSession] = useState<any>(null);
 
   useEffect(() => {
-    setMounted(true);
-    const saved = localStorage.getItem('dp-theme') || 'dark';
-    setDark(saved === 'dark');
-    document.documentElement.setAttribute('data-theme', saved);
-    const checkAuth = async () => {
-        if (!session) {
-        router.push('/login');
-      } else {
-        if (session?.user?.email) setEmail(session.user.email);
-        const storedUserId = localStorage.getItem('dp-user-id');
-        if (storedUserId !== session.user.id) {
-          localStorage.clear();
-          localStorage.setItem('dp-user-id', session.user.id);
-        }
-        setName(localStorage.getItem('dp-name') || '');
+  setMounted(true);
+  const saved = localStorage.getItem('dp-theme') || 'dark';
+  setDark(saved === 'dark');
+  document.documentElement.setAttribute('data-theme', saved);
+
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (!session) {
+      router.push('/login');
+    } else {
+      setSession(session);
+      if (session?.user?.email) setEmail(session.user.email);
+      const storedUserId = localStorage.getItem('dp-user-id');
+      if (storedUserId !== session.user.id) {
+        localStorage.clear();
+        localStorage.setItem('dp-user-id', session.user.id);
       }
-    };
-    checkAuth();
-  }, []);
+      setName(localStorage.getItem('dp-name') || '');
+    }
+  });
+}, []);
 
   useEffect(() => {
     if (!mounted) return;
