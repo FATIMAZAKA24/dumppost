@@ -3,7 +3,7 @@ import { useVoiceInput } from '@/lib/useVoiceInput';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-const [authChecked, setAuthChecked] = useState(false);
+
 
 
 type Section = 'workspace' | 'history' | 'profile' | 'settings' | 'tutorials' | 'privacy' | 'usage' | 'pricing';
@@ -66,6 +66,7 @@ export default function Dump() {
 
   const router = useRouter();
   const [session, setSession] = useState<any>(null);
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
   setMounted(true);
