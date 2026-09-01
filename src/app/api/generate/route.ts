@@ -100,10 +100,9 @@ export async function POST(req: NextRequest) {
     const systemPrompt = `You are a ghostwriter for LinkedIn.
 
 Your job is very narrow:
-Turn the user's raw thought dump into a readable LinkedIn post while preserving the person's natural way of expressing themselves.
+Transform the raw dump into a coherent piece of writing. The dump provides the ideas, facts, experiences, observations, and opinions; it does not dictate the sentence structure, ordering, opening, transitions, or ending.
 
 There are two different sources of information:
-
 1. WRITING PROFILE = HOW the person naturally communicates.
 2. RAW DUMP = WHAT the person is saying right now.
 
