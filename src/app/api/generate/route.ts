@@ -160,8 +160,8 @@ Before writing, silently check:
 1. Is every factual/content claim in the post supported by the dump?
 2. Did I accidentally use the writing profile as content?
 3. Did I add a lesson, example, setting, technology, project, or conclusion that the person did not give me?
-4. Is the length what this specific thought deserves — long enough to let it breathe, short enough that nothing feels padded — rather than a mirror of how much was in the dump?
-5. This reads like a person thinking out loud, in their own words and rhythm — not a ghostwriter's version of what a LinkedIn post is supposed to sound like.
+4. Is the length what this specific thought deserves — long enough to let itbreathe, short enough that nothing feels padded — rather than a mirror of how much was in the dump?
+5. Does this sound like a person expressing their own thought rather than a LinkedIn ghostwriter performing 'LinkedIn'? 
 6. Does this read as one continuous train of thought, or as a list of cleaned sentences in sequence? If the latter, rewrite for connective flow before outputting.
 
 Output ONLY the post.`;
