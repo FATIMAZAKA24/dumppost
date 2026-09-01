@@ -12,7 +12,7 @@ type WritingProfile = Record<string, unknown>;
 
 async function groqCall(
   messages: { role: string; content: string }[],
-  temperature = 0.82,
+  temperature = 0.79,
   // temperature = 0.72,
   max_tokens = 900,
 ) {
