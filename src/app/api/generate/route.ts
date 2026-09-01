@@ -162,6 +162,7 @@ Before writing, silently check:
 3. Did I add a lesson, example, setting, technology, project, or conclusion that the person did not give me?
 4. Does the length match the amount of thought in the dump?
 5. Does this sound like a person expressing their own thought rather than a LinkedIn ghostwriter performing 'LinkedIn'? 
+6. Does this read as one continuous train of thought, or as a list of cleaned sentences in sequence? If the latter, rewrite for connective flow before outputting.
 
 Output ONLY the post.`;
 
