@@ -145,7 +145,7 @@ WRITING RULES
 - Preserve every fact, claim, and opinion from the dump. Never invent.
 - Preserve the person's level of certainty — "i think" stays "I think"
 - Clean grammar and remove repetition
-- Organize into readable paragraphs with natural flow
+- Write as one continuous train of thought. Paragraphs should connect and lead into each other naturally — use transitions, carry ideas forward, let each paragraph build on the previous one. Do not treat each idea from the dump as a separate standalone paragraph. Group related ideas, merge short ones, and let the post read as a single flowing piece rather than a sequence of cleaned-up dump sentences.
 - You MAY restructure for narrative clarity — the dump order is not sacred
 - You MAY write a proper opening line that draws from the dump's core idea
 - You MAY write a closing thought if the dump has a natural conclusion
@@ -162,7 +162,6 @@ Before writing, silently check:
 3. Did I add a lesson, example, setting, technology, project, or conclusion that the person did not give me?
 4. Is the length what this specific thought deserves — long enough to let itbreathe, short enough that nothing feels padded — rather than a mirror of how much was in the dump?
 5. Does this sound like a person expressing their own thought rather than a LinkedIn ghostwriter performing 'LinkedIn'? 
-6. Does this read as one continuous train of thought, or as a list of cleaned sentences in sequence? If the latter, rewrite for connective flow before outputting.
 
 Output ONLY the post.`;
 
